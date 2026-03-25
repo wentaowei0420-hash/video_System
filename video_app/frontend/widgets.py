@@ -174,30 +174,64 @@ class StatusStrip(QFrame):
     def __init__(self, title, value, hint):
         super().__init__()
         self.setObjectName("statusStrip")
-        self.setFixedHeight(72)
+        self.setFixedHeight(88)
+        state_key, state_label, detail_text, icon = self._resolve_state(str(value or ""), str(hint or ""))
+
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(18, 12, 18, 12)
-        layout.setSpacing(14)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(12)
+
+        icon_shell = QFrame()
+        icon_shell.setObjectName(f"statusIconShell_{state_key}")
+        icon_shell.setFixedSize(40, 40)
+        icon_layout = QVBoxLayout(icon_shell)
+        icon_layout.setContentsMargins(0, 0, 0, 0)
+        icon_layout.setAlignment(Qt.AlignCenter)
+
+        icon_label = QLabel()
+        icon_label.setPixmap(icon.pixmap(18, 18))
+        icon_label.setAlignment(Qt.AlignCenter)
+        icon_layout.addWidget(icon_label)
 
         text_block = QVBoxLayout()
         text_block.setContentsMargins(0, 0, 0, 0)
-        text_block.setSpacing(2)
+        text_block.setSpacing(3)
 
         title_label = QLabel(title)
         title_label.setObjectName("statusLabel")
         text_block.addWidget(title_label)
 
-        if hint:
-            hint_label = QLabel(hint)
+        if detail_text:
+            hint_label = QLabel(detail_text)
             hint_label.setObjectName("statusHint")
-            hint_label.setWordWrap(True)
+            hint_label.setWordWrap(False)
+            hint_label.setTextInteractionFlags(Qt.NoTextInteraction)
+            hint_label.setToolTip(str(value or hint or ""))
             text_block.addWidget(hint_label)
 
-        value_label = QLabel(str(value))
-        value_label.setObjectName("statusValue")
+        value_label = QLabel(state_label)
+        value_label.setObjectName(f"statusValueBadge_{state_key}")
+        value_label.setAlignment(Qt.AlignCenter)
 
+        layout.addWidget(icon_shell, alignment=Qt.AlignVCenter)
         layout.addLayout(text_block, 1)
         layout.addWidget(value_label, alignment=Qt.AlignRight | Qt.AlignVCenter)
+
+    def _resolve_state(self, raw_value, raw_hint):
+        normalized = raw_value.strip()
+        lowered = normalized.lower()
+        detail_text = raw_hint.strip()
+        if not detail_text and lowered != "ok":
+            detail_text = normalized
+        if len(detail_text) > 36:
+            detail_text = detail_text[:33] + "..."
+        if lowered == "ok":
+            return "ok", "正常", "", self.style().standardIcon(QStyle.SP_DialogApplyButton)
+        if "missing" in lowered:
+            return "missing", "缺失", detail_text, self.style().standardIcon(QStyle.SP_MessageBoxWarning)
+        if "unavailable" in lowered or "denied" in lowered or "error" in lowered or "failed" in lowered:
+            return "error", "异常", detail_text, self.style().standardIcon(QStyle.SP_MessageBoxCritical)
+        return "info", "检查", detail_text, self.style().standardIcon(QStyle.SP_MessageBoxInformation)
 
 
 class ActionEntryTile(QFrame):
@@ -214,11 +248,23 @@ class ActionEntryTile(QFrame):
         layout.setContentsMargins(18, 8, 18, 8)
         layout.setSpacing(0)
 
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(8)
+
         title_label = QLabel(title)
         title_label.setObjectName("entryTitle")
         title_label.setWordWrap(False)
         title_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        layout.addWidget(title_label)
+
+        arrow_label = QLabel()
+        arrow_label.setObjectName("entryArrow")
+        arrow_label.setPixmap(self.style().standardIcon(QStyle.SP_ArrowForward).pixmap(14, 14))
+        arrow_label.setAlignment(Qt.AlignCenter)
+
+        row.addWidget(title_label, 1)
+        row.addWidget(arrow_label, 0, Qt.AlignRight | Qt.AlignVCenter)
+        layout.addLayout(row)
 
     def _emit_opened(self):
         self.opened.emit(self.page_key)
@@ -293,6 +339,8 @@ class ActionFormCard(QFrame):
         self.run_button.setObjectName("primaryButton")
         self.run_button.setFixedHeight(44)
         self.run_button.setMinimumWidth(132)
+        self.run_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
+        self.run_button.setIconSize(QSize(14, 14))
         self.run_button.clicked.connect(self.submit)
         footer.addStretch(1)
         footer.addWidget(self.run_button)

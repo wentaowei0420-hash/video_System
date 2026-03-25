@@ -3,7 +3,7 @@ import urllib.parse
 import urllib.request
 from datetime import datetime
 
-from PyQt5.QtCore import QThread, QTimer, Qt
+from PyQt5.QtCore import QSize, QThread, QTimer, Qt
 from PyQt5.QtWidgets import (
     QComboBox,
     QDialog,
@@ -20,6 +20,7 @@ from PyQt5.QtWidgets import (
     QScrollArea,
     QStackedWidget,
     QStatusBar,
+    QStyle,
     QVBoxLayout,
     QWidget,
 )
@@ -49,8 +50,18 @@ class 功能窗口(QDialog):
         intro_layout.setContentsMargins(22, 20, 22, 18)
         intro_layout.setSpacing(8)
 
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(10)
+        title_icon = QLabel()
+        title_icon.setObjectName("sectionIconBadge")
+        title_icon.setPixmap(self.style().standardIcon(QStyle.SP_ComputerIcon).pixmap(16, 16))
+        title_icon.setAlignment(Qt.AlignCenter)
         title = QLabel(action_meta.get("title", "未命名功能"))
         title.setObjectName("sectionTitle")
+        title_row.addWidget(title_icon, 0, Qt.AlignVCenter)
+        title_row.addWidget(title, 0, Qt.AlignVCenter)
+        title_row.addStretch(1)
         desc = QLabel(action_meta.get("description", ""))
         desc.setWordWrap(True)
         desc.setObjectName("mutedLabel")
@@ -62,7 +73,7 @@ class 功能窗口(QDialog):
         meta_row.addWidget(module_badge, alignment=Qt.AlignLeft)
         meta_row.addWidget(action_badge, alignment=Qt.AlignLeft)
         meta_row.addStretch(1)
-        intro_layout.addWidget(title)
+        intro_layout.addLayout(title_row)
         intro_layout.addWidget(desc)
         intro_layout.addLayout(meta_row)
         layout.addWidget(intro)
@@ -102,6 +113,9 @@ class 主窗口(QMainWindow):
         self.monitor_grid_layout = None
         self.monitor_summary_label = None
         self.monitor_update_label = None
+        self.monitor_total_value_label = None
+        self.monitor_ok_value_label = None
+        self.monitor_issue_value_label = None
         self.history_list_layout = None
         self.history_summary_label = None
         self.history_update_label = None
@@ -161,12 +175,21 @@ class 主窗口(QMainWindow):
 
         top_row = QHBoxLayout()
         title_block = QVBoxLayout()
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(10)
+        title_icon = QLabel()
+        title_icon.setObjectName("heroIconBadge")
+        title_icon.setPixmap(self.style().standardIcon(QStyle.SP_DesktopIcon).pixmap(18, 18))
         title = QLabel(APP_TITLE)
         title.setObjectName("headerTitle")
         subtitle = QLabel("视频处理控制台")
         subtitle.setObjectName("headerSubtitle")
         subtitle.setWordWrap(True)
-        title_block.addWidget(title)
+        title_row.addWidget(title_icon, 0, Qt.AlignVCenter)
+        title_row.addWidget(title, 0, Qt.AlignVCenter)
+        title_row.addStretch(1)
+        title_block.addLayout(title_row)
         title_block.addWidget(subtitle)
         top_row.addLayout(title_block, 1)
 
@@ -186,9 +209,11 @@ class 主窗口(QMainWindow):
         refresh_button = QPushButton("加载目录")
         refresh_button.setObjectName("primaryButton")
         refresh_button.setFixedHeight(42)
+        self._set_button_icon(refresh_button, QStyle.SP_BrowserReload)
         refresh_button.clicked.connect(self.fetch_catalog)
         health_button = QPushButton("检查连接")
         health_button.setFixedHeight(42)
+        self._set_button_icon(health_button, QStyle.SP_DialogApplyButton)
         health_button.clicked.connect(self.check_health)
         controls.addWidget(self.base_url_edit)
         controls.addWidget(refresh_button)
@@ -220,6 +245,7 @@ class 主窗口(QMainWindow):
         button.setObjectName("moduleButton")
         button.setCheckable(True)
         button.setMinimumHeight(42)
+        self._set_button_icon(button, self._module_icon_enum(page_key, title), size=14)
         button.clicked.connect(lambda _, key=page_key: self.navigate_to_page(key))
         self.module_buttons[page_key] = button
         self.module_nav_layout.insertWidget(self.module_nav_layout.count() - 1, button)
@@ -818,11 +844,10 @@ class 主窗口(QMainWindow):
         hero_layout = QVBoxLayout(hero)
         hero_layout.setContentsMargins(22, 18, 22, 18)
         hero_layout.setSpacing(4)
-        hero_title = QLabel("功能总览")
-        hero_title.setObjectName("heroTitle")
+        hero_title_row = self._build_section_title_row("功能总览", QStyle.SP_DesktopIcon)
         hero_desc = QLabel("按模块进入功能窗口，统一执行视频整理、分类、分析与合并任务。")
         hero_desc.setObjectName("mutedLabel")
-        hero_layout.addWidget(hero_title)
+        hero_layout.addLayout(hero_title_row)
         hero_layout.addWidget(hero_desc)
         layout.addWidget(hero)
 
@@ -841,6 +866,7 @@ class 主窗口(QMainWindow):
             title = QLabel(category.get("title", "未命名模块"))
             title.setObjectName("sectionTitle")
             open_category_button = QPushButton("进入模块")
+            self._set_button_icon(open_category_button, self._module_icon_enum(category_key, category.get("title", "")))
             open_category_button.clicked.connect(lambda _, key=category_key: self.navigate_to_page(key))
             header_row.addWidget(title)
             header_row.addStretch(1)
@@ -877,11 +903,10 @@ class 主窗口(QMainWindow):
         hero.setObjectName("heroPanel")
         hero_layout = QVBoxLayout(hero)
         hero_layout.setContentsMargins(20, 18, 20, 18)
-        hero_title = QLabel("状态监控")
-        hero_title.setObjectName("sectionTitle")
+        hero_title_row = self._build_section_title_row("状态监控", QStyle.SP_MessageBoxInformation)
         hero_desc = QLabel("查看当前运行环境与关键依赖状态。")
         hero_desc.setObjectName("mutedLabel")
-        hero_layout.addWidget(hero_title)
+        hero_layout.addLayout(hero_title_row)
         hero_layout.addWidget(hero_desc)
         layout.addWidget(hero)
 
@@ -891,16 +916,37 @@ class 主窗口(QMainWindow):
         toolbar_layout.setContentsMargins(16, 14, 16, 14)
         toolbar_layout.setSpacing(10)
 
-        self.monitor_summary_label = QLabel("")
-        self.monitor_summary_label.setObjectName("monitorSummary")
+        summary_row = QHBoxLayout()
+        summary_row.setSpacing(10)
+        total_chip, self.monitor_total_value_label = self._build_monitor_stat_chip(
+            "已检测",
+            "monitorStatChip_info",
+            self.style().standardIcon(QStyle.SP_FileDialogDetailedView),
+        )
+        ok_chip, self.monitor_ok_value_label = self._build_monitor_stat_chip(
+            "正常",
+            "monitorStatChip_ok",
+            self.style().standardIcon(QStyle.SP_DialogApplyButton),
+        )
+        issue_chip, self.monitor_issue_value_label = self._build_monitor_stat_chip(
+            "异常",
+            "monitorStatChip_issue",
+            self.style().standardIcon(QStyle.SP_MessageBoxWarning),
+        )
+        summary_row.addWidget(total_chip)
+        summary_row.addWidget(ok_chip)
+        summary_row.addWidget(issue_chip)
+        summary_row.addStretch(1)
+
         self.monitor_update_label = QLabel("尚未刷新")
         self.monitor_update_label.setObjectName("monitorMeta")
         refresh_button = QPushButton("刷新状态")
         refresh_button.setObjectName("primaryButton")
         refresh_button.setFixedHeight(40)
+        self._set_button_icon(refresh_button, QStyle.SP_BrowserReload)
         refresh_button.clicked.connect(self.refresh_monitor_status)
 
-        toolbar_layout.addWidget(self.monitor_summary_label)
+        toolbar_layout.addLayout(summary_row, 1)
         toolbar_layout.addStretch(1)
         toolbar_layout.addWidget(self.monitor_update_label)
         toolbar_layout.addWidget(refresh_button)
@@ -920,6 +966,33 @@ class 主窗口(QMainWindow):
         scroll.setWidget(page)
         return scroll
 
+    def _build_monitor_stat_chip(self, title, object_name, icon):
+        chip = QFrame()
+        chip.setObjectName(object_name)
+        chip_layout = QHBoxLayout(chip)
+        chip_layout.setContentsMargins(12, 10, 12, 10)
+        chip_layout.setSpacing(10)
+
+        icon_label = QLabel()
+        icon_label.setPixmap(icon.pixmap(16, 16))
+        icon_label.setObjectName("monitorStatIcon")
+
+        text_block = QVBoxLayout()
+        text_block.setContentsMargins(0, 0, 0, 0)
+        text_block.setSpacing(1)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("monitorStatTitle")
+        value_label = QLabel("0")
+        value_label.setObjectName("monitorStatValue")
+
+        text_block.addWidget(title_label)
+        text_block.addWidget(value_label)
+
+        chip_layout.addWidget(icon_label)
+        chip_layout.addLayout(text_block)
+        return chip, value_label
+
     def build_history_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
@@ -930,11 +1003,10 @@ class 主窗口(QMainWindow):
         hero.setObjectName("heroPanel")
         hero_layout = QVBoxLayout(hero)
         hero_layout.setContentsMargins(20, 18, 20, 18)
-        hero_title = QLabel("历史记录")
-        hero_title.setObjectName("sectionTitle")
+        hero_title_row = self._build_section_title_row("历史记录", QStyle.SP_FileDialogDetailedView)
         hero_desc = QLabel("查看最近执行的任务记录，并按动作筛选显示。")
         hero_desc.setObjectName("mutedLabel")
-        hero_layout.addWidget(hero_title)
+        hero_layout.addLayout(hero_title_row)
         hero_layout.addWidget(hero_desc)
         layout.addWidget(hero)
 
@@ -954,6 +1026,7 @@ class 主窗口(QMainWindow):
         refresh_button = QPushButton("刷新记录")
         refresh_button.setObjectName("primaryButton")
         refresh_button.setFixedHeight(40)
+        self._set_button_icon(refresh_button, QStyle.SP_BrowserReload)
         refresh_button.clicked.connect(self.refresh_history)
 
         toolbar_layout.addWidget(self.history_summary_label)
@@ -994,12 +1067,15 @@ class 主窗口(QMainWindow):
         self._clear_layout_widgets(self.monitor_grid_layout)
         environment = environment or {}
         ok_count = 0
+        issue_count = 0
         columns = 3
 
         for index, (name, status) in enumerate(environment.items()):
             status_text = "" if status is None else str(status)
             if status_text.lower() == "ok":
                 ok_count += 1
+            else:
+                issue_count += 1
             card = 信息卡片(name, status_text or "-", "")
             self.monitor_grid_layout.addWidget(card, index // columns, index % columns)
 
@@ -1008,8 +1084,14 @@ class 主窗口(QMainWindow):
             empty_label.setObjectName("mutedLabel")
             self.monitor_grid_layout.addWidget(empty_label, 0, 0)
 
+        total = len(environment)
+        if self.monitor_total_value_label is not None:
+            self.monitor_total_value_label.setText(str(total))
+        if self.monitor_ok_value_label is not None:
+            self.monitor_ok_value_label.setText(str(ok_count))
+        if self.monitor_issue_value_label is not None:
+            self.monitor_issue_value_label.setText(str(issue_count))
         if self.monitor_summary_label is not None:
-            total = len(environment)
             self.monitor_summary_label.setText(f"已检测 {total} 项，正常 {ok_count} 项")
 
         if self.monitor_update_label is not None and mark_refresh:
@@ -1039,10 +1121,15 @@ class 主窗口(QMainWindow):
         layout.setSpacing(8)
 
         header = QHBoxLayout()
+        status_icon = QLabel()
+        status_icon.setObjectName("historyIconBadge")
+        status_icon_enum = QStyle.SP_DialogApplyButton if item.get("success") else QStyle.SP_MessageBoxWarning
+        status_icon.setPixmap(self.style().standardIcon(status_icon_enum).pixmap(14, 14))
         title = QLabel(item.get("action_title") or item.get("action_id") or "-")
         title.setObjectName("fieldLabel")
         status = QLabel("Success" if item.get("success") else "Failed")
         status.setObjectName("softBadge" if item.get("success") else "codeBadge")
+        header.addWidget(status_icon, 0, Qt.AlignVCenter)
         header.addWidget(title)
         header.addStretch(1)
         header.addWidget(status)
@@ -1057,6 +1144,42 @@ class 主窗口(QMainWindow):
         message.setObjectName("toolbarLabel")
         layout.addWidget(message)
         return frame
+
+    def _set_button_icon(self, button, icon_enum, size=15):
+        button.setIcon(self.style().standardIcon(icon_enum))
+        button.setIconSize(QSize(size, size))
+
+    def _module_icon_enum(self, page_key, title):
+        if page_key == "overview":
+            return QStyle.SP_DesktopIcon
+        if page_key == "monitor":
+            return QStyle.SP_MessageBoxInformation
+        if page_key == "history":
+            return QStyle.SP_FileDialogDetailedView
+        title_text = str(title or "")
+        if "文件" in title_text:
+            return QStyle.SP_DirOpenIcon
+        if "分类" in title_text:
+            return QStyle.SP_FileDialogContentsView
+        if "统计" in title_text:
+            return QStyle.SP_FileDialogInfoView
+        if "自动" in title_text or "合并" in title_text:
+            return QStyle.SP_MediaPlay
+        return QStyle.SP_FileIcon
+
+    def _build_section_title_row(self, text, icon_enum):
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(10)
+        icon_label = QLabel()
+        icon_label.setObjectName("sectionIconBadge")
+        icon_label.setPixmap(self.style().standardIcon(icon_enum).pixmap(16, 16))
+        title_label = QLabel(text)
+        title_label.setObjectName("sectionTitle")
+        row.addWidget(icon_label, 0, Qt.AlignVCenter)
+        row.addWidget(title_label, 0, Qt.AlignVCenter)
+        row.addStretch(1)
+        return row
 
     def update_history_cards(self, items, mark_refresh=True):
         if self.history_list_layout is None:
@@ -1091,11 +1214,10 @@ class 主窗口(QMainWindow):
         intro.setObjectName("heroPanel")
         intro_layout = QVBoxLayout(intro)
         intro_layout.setContentsMargins(20, 18, 20, 18)
-        title = QLabel(category.get("title", "未命名模块"))
-        title.setObjectName("sectionTitle")
+        title_row = self._build_section_title_row(category.get("title", "未命名模块"), self._module_icon_enum(category_key, category.get("title", "")))
         intro_text = QLabel("选择下方功能按钮打开独立配置窗口。")
         intro_text.setObjectName("mutedLabel")
-        intro_layout.addWidget(title)
+        intro_layout.addLayout(title_row)
         intro_layout.addWidget(intro_text)
         layout.addWidget(intro)
 

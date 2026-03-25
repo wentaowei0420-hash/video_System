@@ -32,6 +32,19 @@ QMainWindow {
     font-size: 14px;
     font-weight: 700;
 }
+#monitorStatIcon {
+    background: transparent;
+}
+#monitorStatTitle {
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 600;
+}
+#monitorStatValue {
+    color: #0f172a;
+    font-size: 18px;
+    font-weight: 700;
+}
 #monitorMeta {
     color: #64748b;
     font-size: 12px;
@@ -41,24 +54,45 @@ QMainWindow {
     font-weight: 700;
     color: #0f172a;
 }
+#heroIconBadge, #sectionIconBadge, #historyIconBadge, #entryArrow {
+    background: transparent;
+}
+#heroIconBadge, #sectionIconBadge {
+    min-width: 34px;
+    max-width: 34px;
+    min-height: 34px;
+    max-height: 34px;
+    border-radius: 17px;
+    border: 1px solid #dbeafe;
+    background: #f8fbff;
+    qproperty-alignment: AlignCenter;
+}
+#historyIconBadge {
+    min-width: 24px;
+    max-width: 24px;
+    min-height: 24px;
+    max-height: 24px;
+    border-radius: 12px;
+    border: 1px solid #e2e8f0;
+    background: #ffffff;
+    qproperty-alignment: AlignCenter;
+}
 #statusLabel {
-    color: #64748b;
-    font-size: 12px;
-    font-weight: 600;
+    color: #475569;
+    font-size: 14px;
+    font-weight: 700;
 }
 #statusHint {
     color: #94a3b8;
     font-size: 12px;
 }
-#statusValue {
-    color: #0f172a;
-    font-size: 22px;
-    font-weight: 700;
-}
 #entryTitle {
     font-size: 14px;
     font-weight: 600;
     color: #334155;
+}
+#entryArrow {
+    color: #94a3b8;
 }
 #fieldLabel {
     color: #334155;
@@ -101,10 +135,74 @@ QGroupBox, #headerFrame, #sectionFrame, #contentPanel, #moduleNavFrame, #dialogH
     border-radius: 18px;
 }
 #statusStrip {
-    background: #fbfcfe;
-    border: 1px solid #dbe4f0;
-    border-radius: 12px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
     min-width: 180px;
+}
+#monitorStatChip_info, #monitorStatChip_ok, #monitorStatChip_issue {
+    border-radius: 16px;
+    border: 1px solid transparent;
+    min-width: 112px;
+}
+#monitorStatChip_info {
+    background: #f8fbff;
+    border-color: #dbeafe;
+}
+#monitorStatChip_ok {
+    background: #f1fcf5;
+    border-color: #ccefd8;
+}
+#monitorStatChip_issue {
+    background: #fff8eb;
+    border-color: #fde68a;
+}
+#statusIconShell_ok, #statusIconShell_missing, #statusIconShell_error, #statusIconShell_info {
+    border-radius: 20px;
+    border: 1px solid transparent;
+}
+#statusIconShell_ok {
+    background: #effcf3;
+    border-color: #bbf7d0;
+}
+#statusIconShell_missing {
+    background: #fff8eb;
+    border-color: #fde68a;
+}
+#statusIconShell_error {
+    background: #fff1f2;
+    border-color: #fecdd3;
+}
+#statusIconShell_info {
+    background: #eff6ff;
+    border-color: #bfdbfe;
+}
+#statusValueBadge_ok, #statusValueBadge_missing, #statusValueBadge_error, #statusValueBadge_info {
+    min-width: 54px;
+    padding: 5px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+}
+#statusValueBadge_ok {
+    background: #effcf3;
+    color: #15803d;
+    border: 1px solid #bbf7d0;
+}
+#statusValueBadge_missing {
+    background: #fff8eb;
+    color: #b45309;
+    border: 1px solid #fde68a;
+}
+#statusValueBadge_error {
+    background: #fff1f2;
+    color: #be123c;
+    border: 1px solid #fecdd3;
+}
+#statusValueBadge_info {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border: 1px solid #bfdbfe;
 }
 #entryTile {
     background: #ffffff;
@@ -116,6 +214,9 @@ QGroupBox, #headerFrame, #sectionFrame, #contentPanel, #moduleNavFrame, #dialogH
     border: 1px solid #bfdbfe;
 }
 #entryTile:hover #entryTitle {
+    color: #1d4ed8;
+}
+#entryTile:hover #entryArrow {
     color: #1d4ed8;
 }
 #entryTile[pressed="true"] {
