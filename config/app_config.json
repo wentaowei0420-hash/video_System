@@ -3,6 +3,11 @@
     "host": "127.0.0.1",
     "port": 8766
   },
+  "ui": {
+    "base_url": "http://127.0.0.1:8766",
+    "last_page": "monitor",
+    "history_action_id": ""
+  },
   "database": {
     "host": "127.0.0.1",
     "port": 3306,

@@ -2,6 +2,7 @@ import json
 import urllib.parse
 import urllib.request
 from datetime import datetime
+from pathlib import Path
 
 from PyQt5.QtCore import QSize, QThread, QTimer, Qt
 from PyQt5.QtWidgets import (
@@ -27,7 +28,105 @@ from PyQt5.QtWidgets import (
 
 from video_app.frontend.api import ApiWorker
 from video_app.frontend.styles import APP_STYLESHEET, APP_TITLE, DEFAULT_BASE_URL
-from video_app.frontend.widgets import 信息卡片, 动作卡片, 功能入口卡片
+from video_app.frontend.widgets import 信息卡片, 动作卡片, 功能入口卡片, 模块入口卡片
+from video_system_settings import load_settings, save_settings_patch
+
+
+def _create_template_header(host, title, description, icon_enum, badges=None, status_text="", status_object_name="softBadge"):
+    frame = QFrame()
+    frame.setObjectName("heroPanel")
+    layout = QVBoxLayout(frame)
+    layout.setContentsMargins(20, 18, 20, 18)
+    layout.setSpacing(10)
+
+    title_row = QHBoxLayout()
+    title_row.setContentsMargins(0, 0, 0, 0)
+    title_row.setSpacing(10)
+
+    title_icon = QLabel()
+    title_icon.setObjectName("sectionIconBadge")
+    title_icon.setPixmap(host.style().standardIcon(icon_enum).pixmap(16, 16))
+    title_row.addWidget(title_icon, 0, Qt.AlignVCenter)
+
+    title_label = QLabel(title)
+    title_label.setObjectName("sectionTitle")
+    title_row.addWidget(title_label, 0, Qt.AlignVCenter)
+    title_row.addStretch(1)
+
+    if status_text:
+        status_badge = QLabel(status_text)
+        status_badge.setObjectName(status_object_name)
+        title_row.addWidget(status_badge, 0, Qt.AlignVCenter)
+
+    layout.addLayout(title_row)
+
+    if description:
+        desc_label = QLabel(description)
+        desc_label.setWordWrap(True)
+        desc_label.setObjectName("mutedLabel")
+        layout.addWidget(desc_label)
+
+    if badges:
+        badge_row = QHBoxLayout()
+        badge_row.setContentsMargins(0, 0, 0, 0)
+        badge_row.setSpacing(8)
+        for text, object_name in badges:
+            badge = QLabel(str(text))
+            badge.setObjectName(object_name)
+            badge_row.addWidget(badge, 0, Qt.AlignLeft | Qt.AlignVCenter)
+        badge_row.addStretch(1)
+        layout.addLayout(badge_row)
+
+    return frame
+
+
+def _create_template_status_strip(host, items, button_text="", button_icon=None, button_handler=None):
+    frame = QFrame()
+    frame.setObjectName("templateStatusStrip")
+    layout = QHBoxLayout(frame)
+    layout.setContentsMargins(16, 14, 16, 14)
+    layout.setSpacing(12)
+
+    for title, value, icon_enum in items:
+        chip = QFrame()
+        chip.setObjectName("templateStatusChip")
+        chip_layout = QHBoxLayout(chip)
+        chip_layout.setContentsMargins(12, 10, 12, 10)
+        chip_layout.setSpacing(10)
+
+        icon = QLabel()
+        icon.setObjectName("templateStatusChipIcon")
+        icon.setPixmap(host.style().standardIcon(icon_enum).pixmap(14, 14))
+        chip_layout.addWidget(icon, 0, Qt.AlignVCenter)
+
+        text_block = QVBoxLayout()
+        text_block.setContentsMargins(0, 0, 0, 0)
+        text_block.setSpacing(1)
+
+        title_label = QLabel(str(title))
+        title_label.setObjectName("templateStatusChipTitle")
+        value_label = QLabel(str(value))
+        value_label.setObjectName("templateStatusChipValue")
+        text_block.addWidget(title_label)
+        text_block.addWidget(value_label)
+        chip_layout.addLayout(text_block)
+
+        layout.addWidget(chip)
+
+    layout.addStretch(1)
+
+    if button_text:
+        button = QPushButton(button_text)
+        button.setObjectName("primaryButton")
+        button.setFixedHeight(40)
+        if button_icon is not None:
+            button.setIcon(host.style().standardIcon(button_icon))
+            button.setIconSize(QSize(14, 14))
+        if button_handler is not None:
+            button.clicked.connect(button_handler)
+        layout.addWidget(button, 0, Qt.AlignVCenter)
+
+    return frame
 
 
 class 功能窗口(QDialog):
@@ -44,39 +143,29 @@ class 功能窗口(QDialog):
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
 
-        intro = QFrame()
-        intro.setObjectName("dialogHeader")
-        intro_layout = QVBoxLayout(intro)
-        intro_layout.setContentsMargins(22, 20, 22, 18)
-        intro_layout.setSpacing(8)
-
-        title_row = QHBoxLayout()
-        title_row.setContentsMargins(0, 0, 0, 0)
-        title_row.setSpacing(10)
-        title_icon = QLabel()
-        title_icon.setObjectName("sectionIconBadge")
-        title_icon.setPixmap(self.style().standardIcon(QStyle.SP_ComputerIcon).pixmap(16, 16))
-        title_icon.setAlignment(Qt.AlignCenter)
-        title = QLabel(action_meta.get("title", "未命名功能"))
-        title.setObjectName("sectionTitle")
-        title_row.addWidget(title_icon, 0, Qt.AlignVCenter)
-        title_row.addWidget(title, 0, Qt.AlignVCenter)
-        title_row.addStretch(1)
-        desc = QLabel(action_meta.get("description", ""))
-        desc.setWordWrap(True)
-        desc.setObjectName("mutedLabel")
-        meta_row = QHBoxLayout()
-        module_badge = QLabel(category_title)
-        module_badge.setObjectName("softBadge")
-        action_badge = QLabel(action_meta.get("id", "-"))
-        action_badge.setObjectName("codeBadge")
-        meta_row.addWidget(module_badge, alignment=Qt.AlignLeft)
-        meta_row.addWidget(action_badge, alignment=Qt.AlignLeft)
-        meta_row.addStretch(1)
-        intro_layout.addLayout(title_row)
-        intro_layout.addWidget(desc)
-        intro_layout.addLayout(meta_row)
+        intro = _create_template_header(
+            self,
+            action_meta.get("title", "未命名功能"),
+            action_meta.get("description", ""),
+            QStyle.SP_ComputerIcon,
+            badges=[
+                (category_title, "softBadge"),
+                (action_meta.get("id", "-"), "codeBadge"),
+            ],
+            status_text="可执行",
+            status_object_name="badgeOnline",
+        )
         layout.addWidget(intro)
+
+        action_strip = _create_template_status_strip(
+            self,
+            [
+                ("参数项", len(action_meta.get("fields", [])), QStyle.SP_FileDialogDetailedView),
+                ("调用方式", "弹窗执行", QStyle.SP_TitleBarNormalButton),
+                ("任务状态", "等待启动", QStyle.SP_MediaPause),
+            ],
+        )
+        layout.addWidget(action_strip)
 
         self.action_card = 动作卡片(action_meta, show_description=False)
         self.action_card.submitted.connect(submit_handler)
@@ -98,6 +187,7 @@ class 主窗口(QMainWindow):
         super().__init__()
         self.setWindowTitle(APP_TITLE)
         self.resize(1580, 980)
+        self._settings = load_settings()
 
         self.current_thread = None
         self.current_worker = None
@@ -122,6 +212,8 @@ class 主窗口(QMainWindow):
         self.history_filter_combo = None
         self.pending_request_path = ""
         self.pending_action_window = None
+        self._restored_history_action_id = str((self._settings.get("ui") or {}).get("history_action_id") or "").strip()
+        self._restored_page_key = str((self._settings.get("ui") or {}).get("last_page") or "overview").strip() or "overview"
 
         self.monitor_refresh_timer = QTimer(self)
         self.monitor_refresh_timer.setInterval(15000)
@@ -138,22 +230,22 @@ class 主窗口(QMainWindow):
         self.setCentralWidget(central)
 
         root = QVBoxLayout(central)
-        root.setContentsMargins(18, 18, 18, 18)
-        root.setSpacing(14)
+        root.setContentsMargins(12, 12, 12, 12)
+        root.setSpacing(10)
 
         root.addWidget(self._build_header())
 
         content_panel = QFrame()
         content_panel.setObjectName("contentPanel")
         content_layout = QVBoxLayout(content_panel)
-        content_layout.setContentsMargins(14, 14, 14, 14)
-        content_layout.setSpacing(14)
+        content_layout.setContentsMargins(10, 10, 10, 10)
+        content_layout.setSpacing(10)
 
         self.module_nav_frame = QFrame()
         self.module_nav_frame.setObjectName("moduleNavFrame")
         self.module_nav_layout = QHBoxLayout(self.module_nav_frame)
-        self.module_nav_layout.setContentsMargins(10, 10, 10, 10)
-        self.module_nav_layout.setSpacing(10)
+        self.module_nav_layout.setContentsMargins(8, 8, 8, 8)
+        self.module_nav_layout.setSpacing(8)
         self.module_nav_layout.addStretch(1)
 
         self.page_stack = QStackedWidget()
@@ -170,14 +262,14 @@ class 主窗口(QMainWindow):
         frame = QFrame()
         frame.setObjectName("headerFrame")
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(22, 20, 22, 18)
-        layout.setSpacing(14)
+        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(10)
 
         top_row = QHBoxLayout()
         title_block = QVBoxLayout()
         title_row = QHBoxLayout()
         title_row.setContentsMargins(0, 0, 0, 0)
-        title_row.setSpacing(10)
+        title_row.setSpacing(8)
         title_icon = QLabel()
         title_icon.setObjectName("heroIconBadge")
         title_icon.setPixmap(self.style().standardIcon(QStyle.SP_DesktopIcon).pixmap(18, 18))
@@ -198,28 +290,52 @@ class 主窗口(QMainWindow):
         top_row.addWidget(self.health_badge, alignment=Qt.AlignTop)
         layout.addLayout(top_row)
 
-        controls = QHBoxLayout()
-        controls.setSpacing(10)
+        toolbar = QFrame()
+        toolbar.setObjectName("headerToolbar")
+        controls = QHBoxLayout(toolbar)
+        controls.setContentsMargins(10, 8, 10, 8)
+        controls.setSpacing(8)
+
+        address_shell = QFrame()
+        address_shell.setObjectName("backendAddressShell")
+        address_layout = QHBoxLayout(address_shell)
+        address_layout.setContentsMargins(10, 8, 10, 8)
+        address_layout.setSpacing(8)
+
+        address_icon = QLabel()
+        address_icon.setObjectName("toolbarIconBadge")
+        address_icon.setPixmap(self.style().standardIcon(QStyle.SP_DriveNetIcon).pixmap(14, 14))
+        address_layout.addWidget(address_icon, 0, Qt.AlignVCenter)
+
         address_label = QLabel("后端地址")
-        address_label.setObjectName("toolbarLabel")
-        controls.addWidget(address_label)
-        self.base_url_edit = QLineEdit(DEFAULT_BASE_URL)
+        address_label.setObjectName("toolbarAddressLabel")
+        address_layout.addWidget(address_label, 0, Qt.AlignVCenter)
+
+        persisted_base_url = str((self._settings.get("ui") or {}).get("base_url") or "").strip()
+        self.base_url_edit = QLineEdit(persisted_base_url or DEFAULT_BASE_URL)
+        self.base_url_edit.setObjectName("toolbarLineEdit")
         self.base_url_edit.setMinimumWidth(360)
-        self.base_url_edit.setFixedHeight(42)
+        self.base_url_edit.setFixedHeight(40)
+        self.base_url_edit.editingFinished.connect(self._persist_ui_state)
+        address_layout.addWidget(self.base_url_edit, 1)
+
+        controls.addWidget(address_shell, 1)
+
         refresh_button = QPushButton("加载目录")
-        refresh_button.setObjectName("primaryButton")
-        refresh_button.setFixedHeight(42)
+        refresh_button.setObjectName("toolbarPrimaryButton")
+        refresh_button.setFixedHeight(40)
         self._set_button_icon(refresh_button, QStyle.SP_BrowserReload)
         refresh_button.clicked.connect(self.fetch_catalog)
+
         health_button = QPushButton("检查连接")
-        health_button.setFixedHeight(42)
+        health_button.setObjectName("toolbarActionButton")
+        health_button.setFixedHeight(40)
         self._set_button_icon(health_button, QStyle.SP_DialogApplyButton)
         health_button.clicked.connect(self.check_health)
-        controls.addWidget(self.base_url_edit)
+
         controls.addWidget(refresh_button)
         controls.addWidget(health_button)
-        controls.addStretch(1)
-        layout.addLayout(controls)
+        layout.addWidget(toolbar)
 
         return frame
 
@@ -244,7 +360,8 @@ class 主窗口(QMainWindow):
         button = QPushButton(title)
         button.setObjectName("moduleButton")
         button.setCheckable(True)
-        button.setMinimumHeight(42)
+        button.setMinimumHeight(46)
+        button.setMinimumWidth(132)
         self._set_button_icon(button, self._module_icon_enum(page_key, title), size=14)
         button.clicked.connect(lambda _, key=page_key: self.navigate_to_page(key))
         self.module_buttons[page_key] = button
@@ -260,6 +377,7 @@ class 主窗口(QMainWindow):
         self.page_stack.setCurrentIndex(page_index)
         target_key = sidebar_key if sidebar_key is not None else page_key
         self._set_active_module_button(target_key)
+        self._persist_ui_state()
         if page_key == "monitor":
             self.refresh_monitor_status(silent=True)
         elif page_key == "history":
@@ -304,12 +422,22 @@ class 主窗口(QMainWindow):
                 path_kind,
             )
         )
-        path_history = self.fetch_path_history()
+        window.action_card.preferencesChanged.connect(
+            lambda params, action_id=record["action"].get("id"): self.save_action_preferences(action_id, params)
+        )
+        path_history = self.fetch_path_history(action_id=record["action"].get("id"))
         if path_history:
             window.action_card.apply_path_history(path_history)
         saved_params = self.fetch_action_preferences(record["action"].get("id"))
         if saved_params:
+            saved_params = self._sanitize_saved_params(record["action"], saved_params)
             window.action_card.apply_params(saved_params)
+        window.finished.connect(
+            lambda *_args, action_id=record["action"].get("id"), action_card=window.action_card: self.save_action_preferences(
+                action_id,
+                action_card.collect_params(),
+            )
+        )
         window.setAttribute(Qt.WA_DeleteOnClose, True)
         window.destroyed.connect(lambda *_: self.action_windows.pop(action_key, None))
         self.action_windows[action_key] = window
@@ -318,18 +446,64 @@ class 主窗口(QMainWindow):
     def _install_action_progress(self, window):
         panel = QFrame()
         panel.setObjectName("taskProgressPanel")
+        panel.setProperty("state", "idle")
         panel_layout = QVBoxLayout(panel)
-        panel_layout.setContentsMargins(16, 14, 16, 14)
-        panel_layout.setSpacing(10)
+        panel_layout.setContentsMargins(18, 16, 18, 16)
+        panel_layout.setSpacing(12)
 
         header_row = QHBoxLayout()
-        title_label = QLabel("任务进度")
-        title_label.setObjectName("fieldLabel")
+        header_row.setContentsMargins(0, 0, 0, 0)
+        header_row.setSpacing(12)
+
+        title_icon = QLabel()
+        title_icon.setObjectName("taskConsoleIcon")
+        title_icon.setPixmap(self.style().standardIcon(QStyle.SP_MediaPlay).pixmap(16, 16))
+        header_row.addWidget(title_icon, 0, Qt.AlignTop)
+
+        title_block = QVBoxLayout()
+        title_block.setContentsMargins(0, 0, 0, 0)
+        title_block.setSpacing(2)
+        title_label = QLabel("任务控制条")
+        title_label.setObjectName("taskConsoleTitle")
+        subtitle_label = QLabel("用于查看当前执行状态、任务编号与实时进度。")
+        subtitle_label.setObjectName("taskConsoleSubtitle")
+        title_block.addWidget(title_label)
+        title_block.addWidget(subtitle_label)
+        header_row.addLayout(title_block, 1)
+
         status_label = QLabel("待执行")
-        status_label.setObjectName("softBadge")
-        header_row.addWidget(title_label)
+        status_label.setObjectName("taskStateBadge_idle")
+        task_id_label = QLabel("未分配")
+        task_id_label.setObjectName("taskIdBadge")
         header_row.addStretch(1)
         header_row.addWidget(status_label)
+        header_row.addWidget(task_id_label)
+
+        meta_strip = QFrame()
+        meta_strip.setObjectName("taskMetaStrip")
+        meta_layout = QHBoxLayout(meta_strip)
+        meta_layout.setContentsMargins(12, 10, 12, 10)
+        meta_layout.setSpacing(14)
+
+        stage_label = QLabel("任务状态")
+        stage_label.setObjectName("taskMetaLabel")
+        stage_value_label = QLabel("待执行")
+        stage_value_label.setObjectName("taskMetaValue")
+        meta_layout.addWidget(stage_label)
+        meta_layout.addWidget(stage_value_label)
+
+        divider = QFrame()
+        divider.setObjectName("taskMetaDivider")
+        divider.setFixedWidth(1)
+        meta_layout.addWidget(divider)
+
+        id_title = QLabel("任务编号")
+        id_title.setObjectName("taskMetaLabel")
+        id_value = QLabel("等待提交")
+        id_value.setObjectName("taskMetaValue")
+        meta_layout.addWidget(id_title)
+        meta_layout.addWidget(id_value)
+        meta_layout.addStretch(1)
 
         battery_row = QHBoxLayout()
         battery_row.setSpacing(10)
@@ -352,15 +526,19 @@ class 主窗口(QMainWindow):
         hint_label.setObjectName("mutedLabel")
 
         panel_layout.addLayout(header_row)
+        panel_layout.addWidget(meta_strip)
         panel_layout.addLayout(battery_row)
         panel_layout.addWidget(hint_label)
 
-        window.layout().insertWidget(1, panel)
+        window.layout().addWidget(panel)
 
         window.progress_panel = panel
         window.progress_bar = progress_bar
         window.progress_cap = progress_cap
         window.progress_status_label = status_label
+        window.progress_task_id_badge = task_id_label
+        window.progress_stage_value_label = stage_value_label
+        window.progress_task_id_value_label = id_value
         window.progress_percent_label = percent_label
         window.progress_hint_label = hint_label
         window.progress_value = 0
@@ -418,14 +596,24 @@ class 主窗口(QMainWindow):
     def _set_action_progress_state(self, window, state, value, status_text, hint_text):
         value = max(0, min(100, int(value)))
         progress_stylesheet, cap_stylesheet = self._progress_stylesheet(state)
+        task_id = str(getattr(window, "current_task_id", "") or "").strip()
         window.progress_value = value
+        window.progress_panel.setProperty("state", state)
+        window.progress_panel.style().unpolish(window.progress_panel)
+        window.progress_panel.style().polish(window.progress_panel)
         window.progress_bar.setValue(value)
         window.progress_bar.setStyleSheet(progress_stylesheet)
         window.progress_cap.setStyleSheet(cap_stylesheet)
         window.progress_status_label.setText(status_text)
-        window.progress_status_label.setObjectName("codeBadge" if state == "failed" else "softBadge")
+        window.progress_status_label.setObjectName(f"taskStateBadge_{state}")
         window.progress_status_label.style().unpolish(window.progress_status_label)
         window.progress_status_label.style().polish(window.progress_status_label)
+        if hasattr(window, "progress_task_id_badge"):
+            window.progress_task_id_badge.setText(task_id or "未分配")
+        if hasattr(window, "progress_stage_value_label"):
+            window.progress_stage_value_label.setText(status_text)
+        if hasattr(window, "progress_task_id_value_label"):
+            window.progress_task_id_value_label.setText(task_id or "等待提交")
         window.progress_percent_label.setText(f"{value}%")
         window.progress_hint_label.setText(hint_text)
 
@@ -534,11 +722,73 @@ class 主窗口(QMainWindow):
             return {}
         return payload.get("data", {}).get("params", {})
 
-    def fetch_path_history(self, limit=40):
+    def save_action_preferences(self, action_id, params):
+        base_url = self.base_url_edit.text().strip().rstrip("/")
+        if not base_url or not action_id:
+            return
+        body = json.dumps({"action_id": action_id, "params": params or {}}, ensure_ascii=False).encode("utf-8")
+        request = urllib.request.Request(
+            base_url + "/preferences",
+            data=body,
+            method="POST",
+            headers={"Content-Type": "application/json; charset=utf-8"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=3):
+                return
+        except Exception:
+            return
+
+    def _sanitize_saved_params(self, action_meta, params):
+        cleaned = dict(params or {})
+        if not cleaned or not action_meta:
+            return cleaned
+
+        removed_fields = []
+        for field in action_meta.get("fields", []):
+            field_name = str(field.get("name") or "").strip()
+            field_type = str(field.get("type") or "").strip()
+            if field_type not in {"dir", "dir_optional", "file", "file_optional"}:
+                continue
+            value = str(cleaned.get(field_name) or "").strip()
+            if not value:
+                continue
+            if not Path(value).exists():
+                cleaned[field_name] = ""
+                removed_fields.append(field.get("label") or field_name)
+
+        if action_meta.get("id") == "videofusion_merge":
+            input_dir = str(cleaned.get("input_dir") or "").strip()
+            temp_dir = str(cleaned.get("temp_dir") or "").strip()
+            runtime_root = str(cleaned.get("runtime_root") or "").strip()
+            legacy_temp = str(Path(runtime_root) / "Temp").strip() if runtime_root else ""
+            lowered_input = input_dir.replace("/", "\\").lower()
+            if lowered_input and lowered_input in {
+                temp_dir.replace("/", "\\").lower(),
+                legacy_temp.replace("/", "\\").lower(),
+            }:
+                cleaned["input_dir"] = ""
+                label = "待合并目录"
+                if label not in removed_fields:
+                    removed_fields.append(label)
+
+        if removed_fields and cleaned != dict(params or {}):
+            self.save_action_preferences(action_meta.get("id"), cleaned)
+            self.status_message.setText("已自动清理失效路径: " + "、".join(removed_fields))
+        return cleaned
+
+    def fetch_path_history(self, action_id=None, field_name=None, path_kind=None, limit=40):
         base_url = self.base_url_edit.text().strip().rstrip("/")
         if not base_url:
             return []
-        url = f"{base_url}/path-history?{urllib.parse.urlencode({'limit': limit})}"
+        query = {"limit": limit}
+        if action_id:
+            query["action_id"] = action_id
+        if field_name:
+            query["field_name"] = field_name
+        if path_kind:
+            query["kind"] = path_kind
+        url = f"{base_url}/path-history?{urllib.parse.urlencode(query)}"
         try:
             with urllib.request.urlopen(url, timeout=3) as response:
                 payload = json.loads(response.read().decode("utf-8"))
@@ -568,7 +818,8 @@ class 主窗口(QMainWindow):
     def refresh_action_window_paths(self, window):
         if window is None or not hasattr(window, "action_card"):
             return
-        path_history = self.fetch_path_history()
+        action_id = str(getattr(window, "action_meta", {}).get("id", "") or "").strip()
+        path_history = self.fetch_path_history(action_id=action_id)
         window.action_card.apply_path_history(path_history)
         window.action_card.update()
         window.update()
@@ -576,12 +827,19 @@ class 主窗口(QMainWindow):
 
     def delete_path_history_item(self, window, field_name, path_kind, path_value):
         base_url = self.base_url_edit.text().strip().rstrip("/")
+        action_id = str(getattr(window, "action_meta", {}).get("id", "") or "").strip()
+        normalized_field = str(field_name or "").strip()
         normalized_value = str(path_value or "").strip()
         normalized_kind = str(path_kind or "").strip()
-        if not base_url or not normalized_value or not normalized_kind:
+        if not base_url or not normalized_field or not normalized_value or not normalized_kind:
             return
         body = json.dumps(
-            {"path_kind": normalized_kind, "path_value": normalized_value},
+            {
+                "action_id": action_id,
+                "field_name": normalized_field,
+                "path_kind": normalized_kind,
+                "path_value": normalized_value,
+            },
             ensure_ascii=False,
         ).encode("utf-8")
         request = urllib.request.Request(
@@ -605,19 +863,28 @@ class 主窗口(QMainWindow):
 
     def clear_path_history_items(self, window, field_name, path_kind):
         base_url = self.base_url_edit.text().strip().rstrip("/")
+        action_id = str(getattr(window, "action_meta", {}).get("id", "") or "").strip()
+        normalized_field = str(field_name or "").strip()
         normalized_kind = str(path_kind or "").strip()
-        if not base_url or not normalized_kind:
+        if not base_url or not normalized_field or not normalized_kind:
             return
         reply = QMessageBox.question(
             window,
             "清空历史路径",
-            f"确定清空当前类型的全部历史路径吗？\n类型：{normalized_kind}",
+            f"确定清空当前字段的全部历史路径吗？\n类型：{normalized_kind}",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.No,
         )
         if reply != QMessageBox.Yes:
             return
-        body = json.dumps({"path_kind": normalized_kind}, ensure_ascii=False).encode("utf-8")
+        body = json.dumps(
+            {
+                "action_id": action_id,
+                "field_name": normalized_field,
+                "path_kind": normalized_kind,
+            },
+            ensure_ascii=False,
+        ).encode("utf-8")
         request = urllib.request.Request(
             base_url + "/path-history/clear",
             data=body,
@@ -635,7 +902,7 @@ class 主窗口(QMainWindow):
             return
         window.action_card.clear_path_history(field_name)
         self.refresh_action_window_paths(window)
-        self.status_message.setText("当前类型历史路径已清空")
+        self.status_message.setText("当前字段历史路径已清空")
 
     def request(self, method, path, payload=None, label="请求", quiet_if_busy=False, source_window=None):
         if self.current_thread is not None:
@@ -679,10 +946,37 @@ class 主窗口(QMainWindow):
         self.pending_action_window = None
 
     def closeEvent(self, event):
+        self._persist_ui_state()
+        for window in list(self.action_windows.values()):
+            try:
+                self.save_action_preferences(window.action_meta.get("id"), window.action_card.collect_params())
+            except Exception:
+                pass
         if self.current_thread is not None:
             self.current_thread.quit()
             self.current_thread.wait(3000)
         super().closeEvent(event)
+
+    def _persist_ui_state(self):
+        try:
+            history_action_id = ""
+            if self.history_filter_combo is not None:
+                history_action_id = str(self.history_filter_combo.currentData() or "").strip()
+            save_settings_patch(
+                {
+                    "ui": {
+                        "base_url": self.base_url_edit.text().strip(),
+                        "last_page": self.current_page_key,
+                        "history_action_id": history_action_id,
+                    }
+                }
+            )
+        except Exception:
+            return
+
+    def _on_history_filter_changed(self, *_args):
+        self._persist_ui_state()
+        self.refresh_history(silent=True)
 
     def check_health(self):
         self.request("GET", "/health", label="检查后端连接")
@@ -831,59 +1125,58 @@ class 主窗口(QMainWindow):
                 }
 
         self.update_history_filter()
-        self.navigate_to_page("overview")
+        target_page = self._restored_page_key if self._restored_page_key in self.page_lookup else "overview"
+        self.navigate_to_page(target_page)
 
     def build_overview_page(self, catalog):
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(4, 4, 4, 4)
-        layout.setSpacing(14)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(10)
 
-        hero = QFrame()
-        hero.setObjectName("heroPanel")
-        hero_layout = QVBoxLayout(hero)
-        hero_layout.setContentsMargins(22, 18, 22, 18)
-        hero_layout.setSpacing(4)
-        hero_title_row = self._build_section_title_row("功能总览", QStyle.SP_DesktopIcon)
-        hero_desc = QLabel("按模块进入功能窗口，统一执行视频整理、分类、分析与合并任务。")
-        hero_desc.setObjectName("mutedLabel")
-        hero_layout.addLayout(hero_title_row)
-        hero_layout.addWidget(hero_desc)
+        categories = catalog.get("categories", [])
+        action_total = sum(len(category.get("actions", [])) for category in categories)
+
+        hero = _create_template_header(
+            self,
+            "功能总览",
+            "按模块进入功能窗口，统一执行视频整理、分类、分析与合并任务。",
+            QStyle.SP_DesktopIcon,
+            badges=[
+                ("总览主页", "softBadge"),
+                ("就绪", "badgeOnline"),
+            ],
+            status_text="控制台",
+            status_object_name="codeBadge",
+        )
         layout.addWidget(hero)
 
-        quick_box = QGroupBox("快捷入口")
-        quick_layout = QVBoxLayout(quick_box)
-        quick_layout.setSpacing(14)
-        for category_index, category in enumerate(catalog.get("categories", [])):
+        overview_strip = _create_template_status_strip(
+            self,
+            [
+                ("模块数", len(categories), QStyle.SP_DirIcon),
+                ("功能数", action_total, QStyle.SP_FileDialogDetailedView),
+                ("打开方式", "独立弹窗", QStyle.SP_TitleBarNormalButton),
+            ],
+        )
+        layout.addWidget(overview_strip)
+
+        quick_box = QGroupBox("模块入口")
+        quick_layout = QGridLayout(quick_box)
+        quick_layout.setHorizontalSpacing(10)
+        quick_layout.setVerticalSpacing(10)
+        for category_index, category in enumerate(categories):
             category_key = f"category:{category_index}"
-            category_frame = QFrame()
-            category_frame.setObjectName("sectionFrame")
-            category_layout = QVBoxLayout(category_frame)
-            category_layout.setContentsMargins(16, 16, 16, 16)
-            category_layout.setSpacing(10)
-
-            header_row = QHBoxLayout()
-            title = QLabel(category.get("title", "未命名模块"))
-            title.setObjectName("sectionTitle")
-            open_category_button = QPushButton("进入模块")
-            self._set_button_icon(open_category_button, self._module_icon_enum(category_key, category.get("title", "")))
-            open_category_button.clicked.connect(lambda _, key=category_key: self.navigate_to_page(key))
-            header_row.addWidget(title)
-            header_row.addStretch(1)
-            header_row.addWidget(open_category_button)
-            category_layout.addLayout(header_row)
-
-            actions_layout = QGridLayout()
-            actions_layout.setHorizontalSpacing(10)
-            actions_layout.setVerticalSpacing(10)
-            columns = 3
-            for action_index, action in enumerate(category.get("actions", [])):
-                action_key = f"{category_key}:action:{action_index}"
-                entry = 功能入口卡片(action.get("title", "未命名功能"), action.get("description", ""), action_key)
-                entry.opened.connect(self.open_action_window)
-                actions_layout.addWidget(entry, action_index // columns, action_index % columns)
-            category_layout.addLayout(actions_layout)
-            quick_layout.addWidget(category_frame)
+            module_card = 模块入口卡片(
+                category.get("title", "未命名模块"),
+                "进入模块后可快速打开对应功能窗口。",
+                category_key,
+                self._module_icon_enum(category_key, category.get("title", "")),
+                action_count=len(category.get("actions", [])),
+                preview_actions=[action.get("title", "未命名功能") for action in category.get("actions", [])],
+            )
+            module_card.opened.connect(self.navigate_to_page)
+            quick_layout.addWidget(module_card, category_index // 2, category_index % 2)
 
         layout.addWidget(quick_box)
         layout.addStretch(1)
@@ -1020,7 +1313,7 @@ class 主窗口(QMainWindow):
         self.history_summary_label.setObjectName("monitorSummary")
         self.history_filter_combo = QComboBox()
         self.history_filter_combo.setMinimumWidth(220)
-        self.history_filter_combo.currentIndexChanged.connect(lambda *_: self.refresh_history(silent=True))
+        self.history_filter_combo.currentIndexChanged.connect(self._on_history_filter_changed)
         self.history_update_label = QLabel("尚未刷新")
         self.history_update_label.setObjectName("monitorMeta")
         refresh_button = QPushButton("刷新记录")
@@ -1101,6 +1394,8 @@ class 主窗口(QMainWindow):
         if self.history_filter_combo is None:
             return
         current_value = self.history_filter_combo.currentData()
+        if self._restored_history_action_id and (current_value is None or str(current_value) == ""):
+            current_value = self._restored_history_action_id
         self.history_filter_combo.blockSignals(True)
         self.history_filter_combo.clear()
         self.history_filter_combo.addItem("全部动作", "")
@@ -1112,15 +1407,18 @@ class 主窗口(QMainWindow):
             if index >= 0:
                 self.history_filter_combo.setCurrentIndex(index)
         self.history_filter_combo.blockSignals(False)
+        self._restored_history_action_id = ""
 
     def _build_history_card(self, item):
         frame = QFrame()
-        frame.setObjectName("sectionFrame")
+        frame.setObjectName("historyRecordCard")
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(16, 14, 16, 14)
-        layout.setSpacing(8)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
 
         header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(10)
         status_icon = QLabel()
         status_icon.setObjectName("historyIconBadge")
         status_icon_enum = QStyle.SP_DialogApplyButton if item.get("success") else QStyle.SP_MessageBoxWarning
@@ -1135,13 +1433,26 @@ class 主窗口(QMainWindow):
         header.addWidget(status)
         layout.addLayout(header)
 
+        meta_badges = QHBoxLayout()
+        meta_badges.setContentsMargins(0, 0, 0, 0)
+        meta_badges.setSpacing(8)
+
+        action_badge = QLabel(item.get("action_id", "-"))
+        action_badge.setObjectName("historyMetaBadge")
+        time_badge = QLabel(item.get("created_at", "-"))
+        time_badge.setObjectName("historyMetaBadge")
+        meta_badges.addWidget(action_badge, 0, Qt.AlignLeft | Qt.AlignVCenter)
+        meta_badges.addWidget(time_badge, 0, Qt.AlignLeft | Qt.AlignVCenter)
+        meta_badges.addStretch(1)
+        layout.addLayout(meta_badges)
+
         meta = QLabel(f"Action: {item.get('action_id', '-')}    Time: {item.get('created_at', '-')}")
-        meta.setObjectName("mutedLabel")
+        meta.setObjectName("historyMetaText")
         layout.addWidget(meta)
 
         message = QLabel(item.get("message") or "No message")
         message.setWordWrap(True)
-        message.setObjectName("toolbarLabel")
+        message.setObjectName("historyMessage")
         layout.addWidget(message)
         return frame
 
@@ -1166,6 +1477,21 @@ class 主窗口(QMainWindow):
         if "自动" in title_text or "合并" in title_text:
             return QStyle.SP_MediaPlay
         return QStyle.SP_FileIcon
+
+    def _action_icon_enum(self, action):
+        title_text = str((action or {}).get("title") or "")
+        action_id = str((action or {}).get("id") or "").lower()
+        if "合并" in title_text or "merge" in action_id:
+            return QStyle.SP_MediaPlay
+        if "重命名" in title_text or "rename" in action_id:
+            return QStyle.SP_FileIcon
+        if "分类" in title_text or "sort" in action_id or "class" in action_id:
+            return QStyle.SP_FileDialogContentsView
+        if "统计" in title_text or "analysis" in action_id or "keyword" in action_id:
+            return QStyle.SP_FileDialogInfoView
+        if "整理" in title_text or "collect" in action_id or "move" in action_id:
+            return QStyle.SP_DirOpenIcon
+        return QStyle.SP_FileDialogDetailedView
 
     def _build_section_title_row(self, text, icon_enum):
         row = QHBoxLayout()
@@ -1207,32 +1533,48 @@ class 主窗口(QMainWindow):
     def build_category_page(self, category, category_key):
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(12)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(10)
 
-        intro = QFrame()
-        intro.setObjectName("heroPanel")
-        intro_layout = QVBoxLayout(intro)
-        intro_layout.setContentsMargins(20, 18, 20, 18)
-        title_row = self._build_section_title_row(category.get("title", "未命名模块"), self._module_icon_enum(category_key, category.get("title", "")))
-        intro_text = QLabel("选择下方功能按钮打开独立配置窗口。")
-        intro_text.setObjectName("mutedLabel")
-        intro_layout.addLayout(title_row)
-        intro_layout.addWidget(intro_text)
+        actions = category.get("actions", [])
+        intro = _create_template_header(
+            self,
+            category.get("title", "未命名模块"),
+            "选择功能卡打开配置窗口。",
+            self._module_icon_enum(category_key, category.get("title", "")),
+            badges=[
+                (f"{len(actions)} 个功能", "codeBadge"),
+            ],
+            status_text="待操作",
+            status_object_name="softBadge",
+        )
         layout.addWidget(intro)
+
+        module_strip = _create_template_status_strip(
+            self,
+            [
+                ("功能数量", len(actions), QStyle.SP_FileDialogDetailedView),
+                ("打开方式", "弹窗配置", QStyle.SP_TitleBarNormalButton),
+            ],
+        )
+        layout.addWidget(module_strip)
 
         entry_frame = QFrame()
         entry_frame.setObjectName("sectionFrame")
         entry_layout = QGridLayout(entry_frame)
-        entry_layout.setContentsMargins(16, 16, 16, 16)
+        entry_layout.setContentsMargins(12, 12, 12, 12)
         entry_layout.setHorizontalSpacing(10)
         entry_layout.setVerticalSpacing(10)
 
-        actions = category.get("actions", [])
-        columns = 3
+        columns = 2
         for action_index, action in enumerate(actions):
             action_key = f"{category_key}:action:{action_index}"
-            entry = 功能入口卡片(action.get("title", "未命名功能"), action.get("description", ""), action_key)
+            entry = 功能入口卡片(
+                action.get("title", "未命名功能"),
+                action.get("description", ""),
+                action_key,
+                self._action_icon_enum(action),
+            )
             entry.opened.connect(self.open_action_window)
             entry_layout.addWidget(entry, action_index // columns, action_index % columns)
 
@@ -1251,9 +1593,16 @@ class 主窗口(QMainWindow):
 
 
 ActionWindow = next(
-    obj for obj in globals().values() if isinstance(obj, type) and issubclass(obj, QDialog) and obj is not QDialog
+    obj for obj in globals().values()
+    if isinstance(obj, type)
+    and issubclass(obj, QDialog)
+    and obj is not QDialog
+    and obj.__module__ == __name__
 )
 MainWindow = next(
     obj for obj in globals().values()
-    if isinstance(obj, type) and issubclass(obj, QMainWindow) and obj is not QMainWindow
+    if isinstance(obj, type)
+    and issubclass(obj, QMainWindow)
+    and obj is not QMainWindow
+    and obj.__module__ == __name__
 )

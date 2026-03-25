@@ -48,17 +48,23 @@ def extract_path_history_entries(action_meta, params):
     entries = []
     if not action_meta:
         return entries
+    action_id = str(action_meta.get("id") or "").strip()
     for field in action_meta.get("fields", []):
+        field_name = str(field.get("name") or "").strip()
         path_kind = PATH_FIELD_TYPES.get(field.get("type"))
         if not path_kind:
             continue
         raw_value = str((params or {}).get(field.get("name"), "") or "").strip()
         if not raw_value:
             continue
-        entries.append({"path_kind": path_kind, "path_value": raw_value})
-        parent = str(Path(raw_value).parent).strip()
-        if path_kind in {"file", "save_file"} and parent not in {"", "."}:
-            entries.append({"path_kind": "dir", "path_value": parent})
+        entries.append(
+            {
+                "action_id": action_id,
+                "field_name": field_name,
+                "path_kind": path_kind,
+                "path_value": raw_value,
+            }
+        )
     return entries
 
 
@@ -137,10 +143,17 @@ class BackendRequestHandler(BaseHTTPRequestHandler):
                 return self._send_json(503, {"success": False, "message": f"MySQL unavailable: {exc}"})
 
         if parsed.path == "/path-history":
+            action_id = (query.get("action_id") or [""])[0].strip() or None
+            field_name = (query.get("field_name") or [""])[0].strip() or None
             path_kind = (query.get("kind") or [""])[0].strip() or None
             limit = (query.get("limit") or ["30"])[0]
             try:
-                items = get_storage().recent_path_history(path_kind=path_kind, limit=limit)
+                items = get_storage().recent_path_history(
+                    action_id=action_id,
+                    field_name=field_name,
+                    path_kind=path_kind,
+                    limit=limit,
+                )
                 return self._send_json(200, {"success": True, "data": {"items": items}})
             except Exception as exc:
                 return self._send_json(503, {"success": False, "message": f"MySQL unavailable: {exc}"})
@@ -182,22 +195,35 @@ class BackendRequestHandler(BaseHTTPRequestHandler):
                 return self._send_json(503, {"success": False, "message": f"MySQL unavailable: {exc}"})
 
         if self.path == "/path-history/delete":
+            action_id = str(payload.get("action_id") or "").strip()
+            field_name = str(payload.get("field_name") or "").strip()
             path_kind = str(payload.get("path_kind") or "").strip()
             path_value = str(payload.get("path_value") or "").strip()
-            if not path_kind or not path_value:
-                return self._send_json(400, {"success": False, "message": "missing path_kind or path_value"})
+            if not field_name or not path_kind or not path_value:
+                return self._send_json(400, {"success": False, "message": "missing field_name, path_kind or path_value"})
             try:
-                deleted = get_storage().delete_path_history(path_kind, path_value)
+                deleted = get_storage().delete_path_history(
+                    path_kind,
+                    path_value,
+                    action_id=action_id,
+                    field_name=field_name,
+                )
                 return self._send_json(200, {"success": True, "message": "path history deleted", "data": {"deleted": deleted}})
             except Exception as exc:
                 return self._send_json(503, {"success": False, "message": f"MySQL unavailable: {exc}"})
 
         if self.path == "/path-history/clear":
+            action_id = str(payload.get("action_id") or "").strip()
+            field_name = str(payload.get("field_name") or "").strip()
             path_kind = str(payload.get("path_kind") or "").strip()
-            if not path_kind:
-                return self._send_json(400, {"success": False, "message": "missing path_kind"})
+            if not field_name or not path_kind:
+                return self._send_json(400, {"success": False, "message": "missing field_name or path_kind"})
             try:
-                deleted = get_storage().clear_path_history(path_kind)
+                deleted = get_storage().clear_path_history(
+                    path_kind,
+                    action_id=action_id,
+                    field_name=field_name,
+                )
                 return self._send_json(200, {"success": True, "message": "path history cleared", "data": {"deleted": deleted}})
             except Exception as exc:
                 return self._send_json(503, {"success": False, "message": f"MySQL unavailable: {exc}"})

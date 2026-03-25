@@ -84,6 +84,26 @@ def _build_runtime_output_dir(path_text, field_name):
     return path
 
 
+def _normalized_path_text(path_text):
+    try:
+        return str(Path(path_text).resolve()).replace("/", "\\").lower()
+    except Exception:
+        return str(path_text or "").strip().replace("/", "\\").lower()
+
+
+def _is_temp_source_dir(input_dir_text, runtime_root, temp_dir_text):
+    normalized_input = _normalized_path_text(input_dir_text)
+    if not normalized_input:
+        return False
+    temp_candidates = {
+        _normalized_path_text(temp_dir_text),
+        _normalized_path_text(runtime_root / "Temp"),
+    }
+    if normalized_input in temp_candidates:
+        return True
+    return Path(str(input_dir_text)).name.lower() == "temp"
+
+
 def _rename_output_files(output_dir, progress=None, start=82, end=90):
     renamed_files = []
     files = sorted(output_dir.glob("*.mp4"))
@@ -124,17 +144,27 @@ def _deliver_output_files(output_dir, target_dir, progress=None, start=90, end=1
 
 def videofusion_merge_action(params, progress=None):
     project_root = Path(__file__).resolve().parents[2]
-    bridge_script = Path(__file__).resolve().with_name("VideoFusion桥接.py")
-    if not bridge_script.exists():
-        return 返回失败(f"未找到 VideoFusion 桥接脚本: {bridge_script}")
+    action_dir = Path(__file__).resolve().parent
+    bridge_candidates = [
+        action_dir / "videofusion_bridge.py",
+        action_dir / "VideoFusion桥接.py",
+    ]
+    bridge_script = next((path for path in bridge_candidates if path.exists()), None)
+    if bridge_script is None:
+        return 返回失败(
+            "未找到 VideoFusion 桥接脚本: "
+            + " / ".join(str(path) for path in bridge_candidates)
+        )
 
     上报进度(progress, 5, "准备中", "正在校验 VideoFusion 运行参数。")
     source_root = 校验目录(params.get("source_root"), "VideoFusion 源码目录")
     runtime_root = 校验目录(params.get("runtime_root"), "VideoFusion 运行时目录")
-    input_dir = 校验目录(params.get("input_dir"), "待合并目录")
-    output_dir = _build_runtime_output_dir(params.get("output_dir"), "输出目录")
-
     temp_dir_text = str(params.get("temp_dir") or (runtime_root / "Temp"))
+    input_dir_text = str(params.get("input_dir") or "").strip()
+    if _is_temp_source_dir(input_dir_text, runtime_root, temp_dir_text):
+        return 返回失败("“待合并目录”填写成了临时目录。请改为真正存放待合并视频的文件夹，不要选择 Temp 目录。")
+    input_dir = 校验目录(input_dir_text, "待合并目录")
+    output_dir = _build_runtime_output_dir(params.get("output_dir"), "输出目录")
     temp_dir = _build_runtime_output_dir(temp_dir_text, "临时目录")
 
     ffmpeg_candidate = params.get("ffmpeg_file")

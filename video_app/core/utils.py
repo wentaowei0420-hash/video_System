@@ -37,36 +37,36 @@ def split_keywords(raw_text):
 
 def ensure_directory(path_text, field_name):
     if not path_text:
-        raise ParameterValidationError(f"{field_name} cannot be empty")
+        raise ParameterValidationError(f"{field_name}不能为空")
     path = Path(path_text)
     if not path.exists():
-        raise ParameterValidationError(f"{field_name} does not exist: {path}")
+        raise ParameterValidationError(f"{field_name}不存在: {path}")
     if not path.is_dir():
-        raise ParameterValidationError(f"{field_name} is not a directory: {path}")
+        raise ParameterValidationError(f"{field_name}不是目录: {path}")
     return path
 
 
 def ensure_file(path_text, field_name, required=True):
     if not path_text:
         if required:
-            raise ParameterValidationError(f"{field_name} cannot be empty")
+            raise ParameterValidationError(f"{field_name}不能为空")
         return None
     path = Path(path_text)
     if not path.exists():
-        raise ParameterValidationError(f"{field_name} does not exist: {path}")
+        raise ParameterValidationError(f"{field_name}不存在: {path}")
     if not path.is_file():
-        raise ParameterValidationError(f"{field_name} is not a file: {path}")
+        raise ParameterValidationError(f"{field_name}不是文件: {path}")
     return path
 
 
 def ensure_output_path(path_text, field_name, required=False):
     if not path_text:
         if required:
-            raise ParameterValidationError(f"{field_name} cannot be empty")
+            raise ParameterValidationError(f"{field_name}不能为空")
         return None
     path = Path(path_text)
     if path.parent and not path.parent.exists():
-        raise ParameterValidationError(f"{field_name} parent directory does not exist: {path.parent}")
+        raise ParameterValidationError(f"{field_name}的父目录不存在: {path.parent}")
     return path
 
 

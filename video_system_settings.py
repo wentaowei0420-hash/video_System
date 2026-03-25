@@ -15,6 +15,11 @@ DEFAULT_CONFIG = {
         "host": "127.0.0.1",
         "port": 8766,
     },
+    "ui": {
+        "base_url": "",
+        "last_page": "overview",
+        "history_action_id": "",
+    },
     "database": {
         "host": "127.0.0.1",
         "port": 3306,
@@ -88,6 +93,7 @@ def load_settings():
         data = DEFAULT_CONFIG
 
     backend = data["backend"]
+    ui = data["ui"]
     database = data["database"]
     tools = data["tools"]
     videofusion = data["videofusion"]
@@ -99,6 +105,11 @@ def load_settings():
         "backend": {
             "host": _read_env("VIDEO_SYSTEM_BACKEND_HOST", backend.get("host", "127.0.0.1")),
             "port": _coerce_int(_read_env("VIDEO_SYSTEM_BACKEND_PORT", backend.get("port", 8766)), backend.get("port", 8766)),
+        },
+        "ui": {
+            "base_url": str(ui.get("base_url") or "").strip(),
+            "last_page": str(ui.get("last_page") or "overview").strip() or "overview",
+            "history_action_id": str(ui.get("history_action_id") or "").strip(),
         },
         "database": {
             "host": _read_env("VIDEO_SYSTEM_DB_HOST", database.get("host", "127.0.0.1")),
@@ -127,6 +138,19 @@ def ensure_runtime_directories():
     Path(settings["runtime_dir"]).mkdir(parents=True, exist_ok=True)
     for key in ("temp_dir", "workspace_dir", "output_dir"):
         Path(settings["videofusion"][key]).mkdir(parents=True, exist_ok=True)
+
+
+def save_settings_patch(patch):
+    _ensure_config_file()
+    try:
+        current_data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        if not isinstance(current_data, dict):
+            current_data = DEFAULT_CONFIG
+    except Exception:
+        current_data = DEFAULT_CONFIG
+    merged = _merge_dict(_merge_dict(DEFAULT_CONFIG, current_data), patch or {})
+    CONFIG_FILE.write_text(json.dumps(merged, ensure_ascii=False, indent=2), encoding="utf-8")
+    load_settings.cache_clear()
 
 
 def backend_base_url(port=None):

@@ -44,6 +44,35 @@ class MySQLStorage:
             options["database"] = config["database"]
         return pymysql.connect(**options)
 
+    def _column_exists(self, cursor, table_name, column_name):
+        cursor.execute(f"SHOW COLUMNS FROM `{table_name}` LIKE %s", (column_name,))
+        return cursor.fetchone() is not None
+
+    def _index_exists(self, cursor, table_name, index_name):
+        cursor.execute(f"SHOW INDEX FROM `{table_name}` WHERE Key_name=%s", (index_name,))
+        return cursor.fetchone() is not None
+
+    def _ensure_path_history_schema(self, cursor):
+        if not self._column_exists(cursor, "path_history", "action_id"):
+            cursor.execute("ALTER TABLE path_history ADD COLUMN action_id VARCHAR(128) NOT NULL DEFAULT '' AFTER id")
+        if not self._column_exists(cursor, "path_history", "field_name"):
+            cursor.execute("ALTER TABLE path_history ADD COLUMN field_name VARCHAR(128) NOT NULL DEFAULT '' AFTER action_id")
+
+        if self._index_exists(cursor, "path_history", "uniq_path_history"):
+            cursor.execute("ALTER TABLE path_history DROP INDEX uniq_path_history")
+        if not self._index_exists(cursor, "path_history", "uniq_path_history_field"):
+            cursor.execute(
+                """
+                ALTER TABLE path_history
+                ADD UNIQUE KEY uniq_path_history_field (
+                    action_id(64),
+                    field_name(64),
+                    path_kind(32),
+                    path_value(255)
+                )
+                """
+            )
+
     def ensure_ready(self):
         with self._lock:
             if self._initialized:
@@ -88,15 +117,23 @@ class MySQLStorage:
                         """
                         CREATE TABLE IF NOT EXISTS path_history (
                             id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                            action_id VARCHAR(128) NOT NULL DEFAULT '',
+                            field_name VARCHAR(128) NOT NULL DEFAULT '',
                             path_kind VARCHAR(32) NOT NULL,
                             path_value VARCHAR(512) NOT NULL,
                             use_count INT NOT NULL DEFAULT 1,
                             last_used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
                                 ON UPDATE CURRENT_TIMESTAMP,
-                            UNIQUE KEY uniq_path_history (path_kind, path_value)
+                            UNIQUE KEY uniq_path_history_field (
+                                action_id(64),
+                                field_name(64),
+                                path_kind(32),
+                                path_value(255)
+                            )
                         )
                         """
                     )
+                    self._ensure_path_history_schema(cursor)
             self._initialized = True
 
     def status_text(self):
@@ -178,39 +215,50 @@ class MySQLStorage:
         normalized = []
         seen = set()
         for item in items or []:
+            action_id = str(item.get("action_id") or "").strip()
+            field_name = str(item.get("field_name") or "").strip()
             path_kind = str(item.get("path_kind") or "").strip()
             path_value = str(item.get("path_value") or "").strip()
-            if not path_kind or not path_value:
+            if not field_name or not path_kind or not path_value:
                 continue
-            key = (path_kind, path_value)
+            key = (action_id, field_name, path_kind, path_value)
             if key in seen:
                 continue
             seen.add(key)
-            normalized.append((path_kind, path_value[:512]))
+            normalized.append((action_id[:128], field_name[:128], path_kind, path_value[:512]))
         if not normalized:
             return
         with self._connect(with_database=True) as connection:
             with connection.cursor() as cursor:
-                for path_kind, path_value in normalized:
+                for action_id, field_name, path_kind, path_value in normalized:
                     cursor.execute(
                         """
-                        INSERT INTO path_history (path_kind, path_value)
-                        VALUES (%s, %s)
+                        INSERT INTO path_history (action_id, field_name, path_kind, path_value)
+                        VALUES (%s, %s, %s, %s)
                         ON DUPLICATE KEY UPDATE
                             use_count = use_count + 1,
                             last_used_at = CURRENT_TIMESTAMP
                         """,
-                        (path_kind, path_value),
+                        (action_id, field_name, path_kind, path_value),
                     )
 
-    def recent_path_history(self, path_kind=None, limit=30):
+    def recent_path_history(self, action_id=None, field_name=None, path_kind=None, limit=30):
         self.ensure_ready()
         limit = max(1, min(int(limit), 200))
-        sql = "SELECT path_kind, path_value, use_count, last_used_at FROM path_history "
+        sql = "SELECT action_id, field_name, path_kind, path_value, use_count, last_used_at FROM path_history "
         args = []
+        filters = []
+        if action_id is not None:
+            filters.append("action_id=%s")
+            args.append(str(action_id).strip())
+        if field_name is not None:
+            filters.append("field_name=%s")
+            args.append(str(field_name).strip())
         if path_kind:
-            sql += "WHERE path_kind=%s "
+            filters.append("path_kind=%s")
             args.append(path_kind)
+        if filters:
+            sql += "WHERE " + " AND ".join(filters) + " "
         sql += "ORDER BY last_used_at DESC, use_count DESC, id DESC LIMIT %s"
         args.append(limit)
         with self._connect(with_database=True) as connection:
@@ -219,30 +267,40 @@ class MySQLStorage:
                 rows = cursor.fetchall() or []
         return rows
 
-    def delete_path_history(self, path_kind, path_value):
+    def delete_path_history(self, path_kind, path_value, action_id=None, field_name=None):
         self.ensure_ready()
         normalized_kind = str(path_kind or "").strip()
         normalized_value = str(path_value or "").strip()
-        if not normalized_kind or not normalized_value:
+        normalized_action = str(action_id or "").strip()
+        normalized_field = str(field_name or "").strip()
+        if not normalized_kind or not normalized_value or not normalized_field:
             return 0
         with self._connect(with_database=True) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "DELETE FROM path_history WHERE path_kind=%s AND path_value=%s",
-                    (normalized_kind, normalized_value[:512]),
+                    """
+                    DELETE FROM path_history
+                    WHERE action_id=%s AND field_name=%s AND path_kind=%s AND path_value=%s
+                    """,
+                    (normalized_action[:128], normalized_field[:128], normalized_kind, normalized_value[:512]),
                 )
                 return int(cursor.rowcount or 0)
 
-    def clear_path_history(self, path_kind):
+    def clear_path_history(self, path_kind, action_id=None, field_name=None):
         self.ensure_ready()
         normalized_kind = str(path_kind or "").strip()
-        if not normalized_kind:
+        normalized_action = str(action_id or "").strip()
+        normalized_field = str(field_name or "").strip()
+        if not normalized_kind or not normalized_field:
             return 0
         with self._connect(with_database=True) as connection:
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "DELETE FROM path_history WHERE path_kind=%s",
-                    (normalized_kind,),
+                    """
+                    DELETE FROM path_history
+                    WHERE action_id=%s AND field_name=%s AND path_kind=%s
+                    """,
+                    (normalized_action[:128], normalized_field[:128], normalized_kind),
                 )
                 return int(cursor.rowcount or 0)
 

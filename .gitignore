@@ -1,2 +1,5 @@
 *.exe
 *.pyd
+__pycache__/
+*.pyc
+runtime/
