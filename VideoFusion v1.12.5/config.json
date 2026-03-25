@@ -1,0 +1,37 @@
+{
+    "Video": {
+        "音频降噪": "",
+        "音频响度标准化": "loudnorm=i=-24.0:lra=2.0:tp=-1.0:",
+        "音频采样率": 44100,
+        "视频去色带": false,
+        "视频去色块": false,
+        "输出编码策略": "-c:v libx264 -crf 23 -preset slow -qcomp 0.5 -psy-rd 0.3:0 -aq-mode 2 -aq-strength 0.8",
+        "输出文件路径": "D:\\pro\\task\\VIDEOF~1.5\\output",
+        "补帧策略": 1,
+        "缩放质量": "sinc",
+        "视频去抖动": false,
+        "黑边去除算法": 0,
+        "目标视频帧率": 30,
+        "视频降噪": 0,
+        "去黑边采样帧数": 100
+    },
+    "OpenCV": {
+        "自动调整视频亮度对比度": false,
+        "超分辨率算法": 0,
+        "视频白平衡": false
+    },
+    "General": {
+        "完成后删除临时目录": false,
+        "FFmpeg路径": "D:\\pro\\task\\VIDEOF~1.5\\bin\\ffmpeg.exe",
+        "是否合并视频": true,
+        "预览视频自动播放": false,
+        "预览视频帧": 1,
+        "预览视频是否去黑边": false,
+        "临时目录": "D:/pro/task/VIDEOF~1.5/Temp",
+        "视频处理引擎": 0
+    },
+    "QFluentWidgets": {
+        "ThemeColor": "#ff009faa",
+        "ThemeMode": "Light"
+    }
+}

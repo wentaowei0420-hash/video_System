@@ -1,0 +1,25 @@
+{
+  "backend": {
+    "host": "127.0.0.1",
+    "port": 8766
+  },
+  "database": {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "user": "root",
+    "password": "123456",
+    "name": "video_system",
+    "charset": "utf8mb4"
+  },
+  "tools": {
+    "mediainfo_path": ""
+  },
+  "videofusion": {
+    "source_dir": "VideoFusion-1.12.5_execode",
+    "runtime_dir": "VideoFusion v1.12.5",
+    "temp_dir": "runtime/videofusion/temp",
+    "workspace_dir": "runtime/videofusion/workspace",
+    "output_dir": "runtime/videofusion/output",
+    "ffmpeg_file": "VideoFusion v1.12.5/bin/ffmpeg.exe"
+  }
+}
