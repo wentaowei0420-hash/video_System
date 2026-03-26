@@ -837,6 +837,54 @@ QComboBox QAbstractItemView {
     selection-color: #1d4ed8;
     outline: none;
 }
+#tagChip {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 12px;
+}
+#tagChipLabel {
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 700;
+}
+QPushButton#tagChipRemoveButton {
+    background: #ffffff;
+    border: 1px solid #dbeafe;
+    border-radius: 11px;
+    color: #475569;
+    padding: 0;
+    font-size: 12px;
+    font-weight: 800;
+}
+QPushButton#tagChipRemoveButton:hover {
+    background: #dbeafe;
+    border: 1px solid #93c5fd;
+    color: #1d4ed8;
+}
+QPushButton#tagChipRemoveButton:pressed {
+    background: #bfdbfe;
+    border: 1px solid #60a5fa;
+    color: #1d4ed8;
+}
+QPushButton#tagRecentChip {
+    background: #ffffff;
+    border: 1px solid #dbeafe;
+    border-radius: 12px;
+    color: #1d4ed8;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+}
+QPushButton#tagRecentChip:hover {
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
+    color: #1d4ed8;
+}
+QPushButton#tagRecentChip:pressed {
+    background: #dbeafe;
+    border: 1px solid #60a5fa;
+    color: #1d4ed8;
+}
 QScrollArea {
     border: 1px solid #e2e8f0;
     border-radius: 18px;

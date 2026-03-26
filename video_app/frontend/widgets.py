@@ -1,8 +1,11 @@
+import re
+
 from PyQt5.QtCore import QSize, Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor
 from PyQt5.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QFrame,
     QGraphicsDropShadowEffect,
@@ -11,6 +14,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QSpinBox,
     QStyle,
@@ -18,9 +22,37 @@ from PyQt5.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from video_system_settings import load_settings, save_settings_patch
 
 
 PATH_FIELD_TYPES = {"dir", "dir_optional", "file", "file_optional", "save_file"}
+
+
+def load_recent_keyword_tags():
+    try:
+        settings = load_settings()
+        values = (settings.get("ui") or {}).get("recent_keyword_tags") or []
+        return [str(item).strip() for item in values if str(item).strip()]
+    except Exception:
+        return []
+
+
+def save_recent_keyword_tags(values):
+    try:
+        normalized = []
+        seen = set()
+        for item in values or []:
+            text = str(item or "").strip()
+            if not text:
+                continue
+            marker = text.lower()
+            if marker in seen:
+                continue
+            seen.add(marker)
+            normalized.append(text)
+        save_settings_patch({"ui": {"recent_keyword_tags": normalized[:30]}})
+    except Exception:
+        return
 
 
 class NoWheelComboBox(QComboBox):
@@ -29,6 +61,614 @@ class NoWheelComboBox(QComboBox):
             super().wheelEvent(event)
             return
         event.ignore()
+
+
+class NoWheelSpinBox(QSpinBox):
+    def wheelEvent(self, event):
+        event.ignore()
+
+
+class TagInput(QWidget):
+    valueChanged = pyqtSignal(list)
+
+    def __init__(self, default=None):
+        super().__init__()
+        self._tags = []
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        input_row = QHBoxLayout()
+        input_row.setContentsMargins(0, 0, 0, 0)
+        input_row.setSpacing(8)
+
+        self.input_edit = QLineEdit()
+        self.input_edit.setPlaceholderText("输入关键词后回车或点击添加")
+        self.input_edit.returnPressed.connect(self.add_pending_tags)
+        input_row.addWidget(self.input_edit, 1)
+
+        self.add_button = QPushButton("添加")
+        self.add_button.setObjectName("toolbarActionButton")
+        self.add_button.setFixedHeight(34)
+        self.add_button.clicked.connect(self.add_pending_tags)
+        input_row.addWidget(self.add_button)
+
+        layout.addLayout(input_row)
+
+        self.tags_host = QWidget()
+        self.tags_layout = QGridLayout(self.tags_host)
+        self.tags_layout.setContentsMargins(0, 0, 0, 0)
+        self.tags_layout.setHorizontalSpacing(8)
+        self.tags_layout.setVerticalSpacing(8)
+        layout.addWidget(self.tags_host)
+
+        self.set_value(default)
+
+    def _normalize_values(self, raw_value):
+        if isinstance(raw_value, (list, tuple, set)):
+            raw_items = raw_value
+        else:
+            raw_items = re.split(r"[\n,，；;]+", str(raw_value or ""))
+        values = []
+        seen = set()
+        for item in raw_items:
+            text = str(item or "").strip()
+            if not text:
+                continue
+            marker = text.lower()
+            if marker in seen:
+                continue
+            seen.add(marker)
+            values.append(text)
+        return values
+
+    def _load_recent_tags(self):
+        try:
+            settings = load_settings()
+            return self._normalize_values((settings.get("ui") or {}).get("recent_keyword_tags") or [])
+        except Exception:
+            return []
+
+    def _save_recent_tags(self):
+        try:
+            save_settings_patch({"ui": {"recent_keyword_tags": list(self._recent_tags[:30])}})
+        except Exception:
+            return
+
+    def _clear_tags_layout(self):
+        while self.tags_layout.count():
+            item = self.tags_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _clear_recent_tags_layout(self):
+        while self.recent_tags_layout.count():
+            item = self.recent_tags_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _sync_recent_tags(self, tags):
+        combined = self._normalize_values(list(tags or []) + list(self._recent_tags or []))
+        self._recent_tags = combined[:30]
+        save_recent_keyword_tags(self._recent_tags)
+        self._refresh_recent_tags()
+
+    def _refresh_recent_tags(self):
+        self._clear_recent_tags_layout()
+        if not self._recent_tags:
+            hint = QLabel("最近还没有记录，新增过的标签会自动出现在这里。")
+            hint.setWordWrap(True)
+            hint.setObjectName("mutedLabel")
+            self.recent_tags_layout.addWidget(hint, 0, 0, 1, 1)
+            return
+        columns = 4
+        for index, tag in enumerate(self._recent_tags):
+            button = QPushButton(tag)
+            button.setObjectName("tagRecentChip")
+            button.setFixedHeight(32)
+            button.clicked.connect(lambda _, current_tag=tag: self.add_recent_tag(current_tag))
+            self.recent_tags_layout.addWidget(button, index // columns, index % columns, 1, 1)
+
+    def add_recent_tag(self, tag):
+        current = self._normalize_values(self._tags + [tag])
+        if current == self._tags:
+            return
+        self._tags = current
+        self._sync_recent_tags(self._tags)
+        self._refresh_tags()
+        self.valueChanged.emit(list(self._tags))
+
+    def add_batch_tags(self):
+        pending = self._normalize_values(self.batch_edit.toPlainText())
+        if not pending:
+            return
+        current = self._normalize_values(self._tags + pending)
+        if current == self._tags:
+            self.batch_edit.clear()
+            return
+        self._tags = current
+        self.batch_edit.clear()
+        self._sync_recent_tags(self._tags)
+        self._refresh_tags()
+        self.valueChanged.emit(list(self._tags))
+
+    def _refresh_tags(self):
+        self._clear_tags_layout()
+        if not self._tags:
+            hint = QLabel("未添加关键词标签")
+            hint.setObjectName("mutedLabel")
+            self.tags_layout.addWidget(hint, 0, 0, 1, 1)
+            return
+        columns = 4
+        for index, tag in enumerate(self._tags):
+            chip = QFrame()
+            chip.setObjectName("tagChip")
+            chip_layout = QHBoxLayout(chip)
+            chip_layout.setContentsMargins(10, 6, 8, 6)
+            chip_layout.setSpacing(6)
+
+            label = QLabel(tag)
+            label.setObjectName("tagChipLabel")
+            chip_layout.addWidget(label)
+
+            remove_button = QPushButton("×")
+            remove_button.setObjectName("tagChipRemoveButton")
+            remove_button.setFixedSize(22, 22)
+            remove_button.clicked.connect(lambda _, current_tag=tag: self.remove_tag(current_tag))
+            chip_layout.addWidget(remove_button)
+
+            self.tags_layout.addWidget(chip, index // columns, index % columns, 1, 1)
+
+    def add_pending_tags(self):
+        pending = self._normalize_values(self.input_edit.text())
+        if not pending:
+            return
+        current = self._normalize_values(self._tags + pending)
+        if current == self._tags:
+            self.input_edit.clear()
+            return
+        self._tags = current
+        self.input_edit.clear()
+        self._sync_recent_tags(self._tags)
+        self._refresh_tags()
+        self.valueChanged.emit(list(self._tags))
+
+    def remove_tag(self, tag):
+        normalized = str(tag or "").strip().lower()
+        self._tags = [item for item in self._tags if str(item).strip().lower() != normalized]
+        self._refresh_tags()
+        self.valueChanged.emit(list(self._tags))
+
+    def set_value(self, value):
+        self._tags = self._normalize_values(value)
+        self._sync_recent_tags(self._tags)
+        self._refresh_tags()
+
+    def value(self):
+        return list(self._tags)
+
+
+class TagPoolDialog(QDialog):
+    valueChanged = pyqtSignal(list)
+
+    def __init__(self, tags=None, parent=None):
+        super().__init__(parent)
+        self._tags = []
+        self._recent_tags = load_recent_keyword_tags()
+        self.setWindowTitle("标签池")
+        self.resize(760, 520)
+        self.setMinimumSize(680, 460)
+        self.setWindowFlags(
+            Qt.Window
+            | Qt.WindowMinimizeButtonHint
+            | Qt.WindowMaximizeButtonHint
+            | Qt.WindowCloseButtonHint
+        )
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(12)
+
+        header = QFrame()
+        header.setObjectName("heroPanel")
+        header_layout = QVBoxLayout(header)
+        header_layout.setContentsMargins(16, 14, 16, 14)
+        header_layout.setSpacing(6)
+
+        title_row = QHBoxLayout()
+        title_row.setContentsMargins(0, 0, 0, 0)
+        title_row.setSpacing(10)
+        icon = QLabel()
+        icon.setObjectName("sectionIconBadge")
+        icon.setPixmap(self.style().standardIcon(QStyle.SP_FileDialogContentsView).pixmap(16, 16))
+        title_row.addWidget(icon, 0, Qt.AlignVCenter)
+
+        title = QLabel("关键词标签池")
+        title.setObjectName("sectionTitle")
+        title_row.addWidget(title, 0, Qt.AlignVCenter)
+        title_row.addStretch(1)
+
+        self.summary_badge = QLabel("0 个标签")
+        self.summary_badge.setObjectName("softBadge")
+        title_row.addWidget(self.summary_badge, 0, Qt.AlignVCenter)
+        header_layout.addLayout(title_row)
+
+        subtitle = QLabel("在这里统一添加、删除和维护检索标签。命中任意一个标签就会被检索到。")
+        subtitle.setWordWrap(True)
+        subtitle.setObjectName("mutedLabel")
+        header_layout.addWidget(subtitle)
+        layout.addWidget(header)
+
+        toolbar = QFrame()
+        toolbar.setObjectName("sectionFrame")
+        toolbar_layout = QHBoxLayout(toolbar)
+        toolbar_layout.setContentsMargins(14, 12, 14, 12)
+        toolbar_layout.setSpacing(8)
+
+        self.input_edit = QLineEdit()
+        self.input_edit.setPlaceholderText("输入一个或多个关键词，按回车或点击添加")
+        self.input_edit.returnPressed.connect(self.add_pending_tags)
+        toolbar_layout.addWidget(self.input_edit, 1)
+
+        self.add_button = QPushButton("添加标签")
+        self.add_button.setObjectName("primaryButton")
+        self.add_button.setFixedHeight(36)
+        self.add_button.clicked.connect(self.add_pending_tags)
+        toolbar_layout.addWidget(self.add_button)
+        layout.addWidget(toolbar)
+
+        batch_box = QFrame()
+        batch_box.setObjectName("sectionFrame")
+        batch_layout = QVBoxLayout(batch_box)
+        batch_layout.setContentsMargins(14, 12, 14, 12)
+        batch_layout.setSpacing(8)
+
+        batch_title = QLabel("批量粘贴")
+        batch_title.setObjectName("sectionTitle")
+        batch_layout.addWidget(batch_title)
+
+        batch_hint = QLabel("支持换行、逗号、分号自动拆分为多个标签。")
+        batch_hint.setObjectName("mutedLabel")
+        batch_layout.addWidget(batch_hint)
+
+        self.batch_edit = QTextEdit()
+        self.batch_edit.setPlaceholderText("可一次性粘贴多个关键词，例如：\n2015, 2016, 2017")
+        self.batch_edit.setMinimumHeight(88)
+        batch_layout.addWidget(self.batch_edit)
+
+        batch_action_row = QHBoxLayout()
+        batch_action_row.setContentsMargins(0, 0, 0, 0)
+        batch_action_row.setSpacing(8)
+        batch_action_row.addStretch(1)
+
+        batch_button = QPushButton("批量拆分添加")
+        batch_button.setObjectName("toolbarActionButton")
+        batch_button.setFixedHeight(34)
+        batch_button.clicked.connect(self.add_batch_tags)
+        batch_action_row.addWidget(batch_button)
+        batch_layout.addLayout(batch_action_row)
+        layout.addWidget(batch_box)
+
+        self.recent_box = QFrame()
+        self.recent_box.setObjectName("sectionFrame")
+        recent_layout = QVBoxLayout(self.recent_box)
+        recent_layout.setContentsMargins(14, 12, 14, 12)
+        recent_layout.setSpacing(8)
+
+        recent_title = QLabel("最近常用标签")
+        recent_title.setObjectName("sectionTitle")
+        recent_layout.addWidget(recent_title)
+
+        recent_hint = QLabel("点击即可重新加入当前标签池。")
+        recent_hint.setObjectName("mutedLabel")
+        recent_layout.addWidget(recent_hint)
+
+        self.recent_tags_host = QWidget()
+        self.recent_tags_layout = QGridLayout(self.recent_tags_host)
+        self.recent_tags_layout.setContentsMargins(0, 0, 0, 0)
+        self.recent_tags_layout.setHorizontalSpacing(8)
+        self.recent_tags_layout.setVerticalSpacing(8)
+        recent_layout.addWidget(self.recent_tags_host)
+        layout.addWidget(self.recent_box)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll_host = QWidget()
+        self.tags_layout = QGridLayout(scroll_host)
+        self.tags_layout.setContentsMargins(0, 0, 0, 0)
+        self.tags_layout.setHorizontalSpacing(8)
+        self.tags_layout.setVerticalSpacing(8)
+        scroll.setWidget(scroll_host)
+        layout.addWidget(scroll, 1)
+
+        footer = QHBoxLayout()
+        footer.setContentsMargins(0, 0, 0, 0)
+        footer.setSpacing(8)
+        footer.addStretch(1)
+        close_button = QPushButton("关闭")
+        close_button.setObjectName("toolbarActionButton")
+        close_button.setFixedHeight(36)
+        close_button.clicked.connect(self.accept)
+        footer.addWidget(close_button)
+        layout.addLayout(footer)
+
+        self.set_value(tags)
+        self._refresh_recent_tags()
+
+    def _normalize_values(self, raw_value):
+        if isinstance(raw_value, (list, tuple, set)):
+            raw_items = raw_value
+        else:
+            raw_items = re.split(r"[\n,，；;]+", str(raw_value or ""))
+        values = []
+        seen = set()
+        for item in raw_items:
+            text = str(item or "").strip()
+            if not text:
+                continue
+            marker = text.lower()
+            if marker in seen:
+                continue
+            seen.add(marker)
+            values.append(text)
+        return values
+
+    def _clear_tags_layout(self):
+        while self.tags_layout.count():
+            item = self.tags_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+
+    def _refresh_summary(self):
+        self.summary_badge.setText(f"{len(self._tags)} 个标签")
+
+    def _refresh_tags(self):
+        self._clear_tags_layout()
+        self._refresh_summary()
+        if not self._tags:
+            hint = QLabel("当前还没有标签，添加后会持续保留，直到你手动删除。")
+            hint.setWordWrap(True)
+            hint.setObjectName("mutedLabel")
+            self.tags_layout.addWidget(hint, 0, 0, 1, 1)
+            return
+        columns = 3
+        for index, tag in enumerate(self._tags):
+            chip = QFrame()
+            chip.setObjectName("tagChip")
+            chip_layout = QHBoxLayout(chip)
+            chip_layout.setContentsMargins(10, 6, 8, 6)
+            chip_layout.setSpacing(6)
+
+            label = QLabel(tag)
+            label.setObjectName("tagChipLabel")
+            chip_layout.addWidget(label, 1)
+
+            remove_button = QPushButton("×")
+            remove_button.setObjectName("tagChipRemoveButton")
+            remove_button.setFixedSize(22, 22)
+            remove_button.clicked.connect(lambda _, current_tag=tag: self.remove_tag(current_tag))
+            chip_layout.addWidget(remove_button, 0)
+
+            self.tags_layout.addWidget(chip, index // columns, index % columns, 1, 1)
+
+    def add_pending_tags(self):
+        pending = self._normalize_values(self.input_edit.text())
+        if not pending:
+            return
+        current = self._normalize_values(self._tags + pending)
+        if current == self._tags:
+            self.input_edit.clear()
+            return
+        self._tags = current
+        self.input_edit.clear()
+        self._refresh_tags()
+        self.valueChanged.emit(list(self._tags))
+
+    def remove_tag(self, tag):
+        normalized = str(tag or "").strip().lower()
+        self._tags = [item for item in self._tags if str(item).strip().lower() != normalized]
+        self._refresh_tags()
+        self.valueChanged.emit(list(self._tags))
+
+    def set_value(self, value):
+        self._tags = self._normalize_values(value)
+        self._refresh_tags()
+
+    def value(self):
+        return list(self._tags)
+
+
+def _tag_pool_clear_recent_tags_layout(self):
+    while self.recent_tags_layout.count():
+        item = self.recent_tags_layout.takeAt(0)
+        widget = item.widget()
+        if widget is not None:
+            widget.deleteLater()
+
+
+def _tag_pool_refresh_recent_tags(self):
+    self._clear_recent_tags_layout()
+    if not self._recent_tags:
+        hint = QLabel("最近还没有记录，新增过的标签会自动出现在这里。")
+        hint.setWordWrap(True)
+        hint.setObjectName("mutedLabel")
+        self.recent_tags_layout.addWidget(hint, 0, 0, 1, 1)
+        return
+    columns = 4
+    for index, tag in enumerate(self._recent_tags):
+        button = QPushButton(tag)
+        button.setObjectName("tagRecentChip")
+        button.setFixedHeight(32)
+        button.clicked.connect(lambda _, current_tag=tag: self.add_recent_tag(current_tag))
+        self.recent_tags_layout.addWidget(button, index // columns, index % columns, 1, 1)
+
+
+def _tag_pool_sync_recent_tags(self, tags):
+    combined = self._normalize_values(list(tags or []) + list(self._recent_tags or []))
+    self._recent_tags = combined[:30]
+    save_recent_keyword_tags(self._recent_tags)
+    self._refresh_recent_tags()
+
+
+def _tag_pool_add_recent_tag(self, tag):
+    current = self._normalize_values(self._tags + [tag])
+    if current == self._tags:
+        return
+    self._tags = current
+    self._sync_recent_tags(self._tags)
+    self._refresh_tags()
+    self.valueChanged.emit(list(self._tags))
+
+
+def _tag_pool_add_batch_tags(self):
+    pending = self._normalize_values(self.batch_edit.toPlainText())
+    if not pending:
+        return
+    current = self._normalize_values(self._tags + pending)
+    if current == self._tags:
+        self.batch_edit.clear()
+        return
+    self._tags = current
+    self.batch_edit.clear()
+    self._sync_recent_tags(self._tags)
+    self._refresh_tags()
+    self.valueChanged.emit(list(self._tags))
+
+
+def _tag_pool_add_pending_tags(self):
+    pending = self._normalize_values(self.input_edit.text())
+    if not pending:
+        return
+    current = self._normalize_values(self._tags + pending)
+    if current == self._tags:
+        self.input_edit.clear()
+        return
+    self._tags = current
+    self.input_edit.clear()
+    self._sync_recent_tags(self._tags)
+    self._refresh_tags()
+    self.valueChanged.emit(list(self._tags))
+
+
+def _tag_pool_remove_tag(self, tag):
+    normalized = str(tag or "").strip().lower()
+    self._tags = [item for item in self._tags if str(item).strip().lower() != normalized]
+    self._refresh_tags()
+    self.valueChanged.emit(list(self._tags))
+
+
+def _tag_pool_set_value(self, value):
+    self._tags = self._normalize_values(value)
+    self._sync_recent_tags(self._tags)
+    self._refresh_tags()
+
+
+TagPoolDialog._clear_recent_tags_layout = _tag_pool_clear_recent_tags_layout
+TagPoolDialog._refresh_recent_tags = _tag_pool_refresh_recent_tags
+TagPoolDialog._sync_recent_tags = _tag_pool_sync_recent_tags
+TagPoolDialog.add_recent_tag = _tag_pool_add_recent_tag
+TagPoolDialog.add_batch_tags = _tag_pool_add_batch_tags
+TagPoolDialog.add_pending_tags = _tag_pool_add_pending_tags
+TagPoolDialog.remove_tag = _tag_pool_remove_tag
+TagPoolDialog.set_value = _tag_pool_set_value
+
+
+class TagPoolInput(QWidget):
+    valueChanged = pyqtSignal(list)
+
+    def __init__(self, default=None):
+        super().__init__()
+        self._tags = []
+        self._dialog = None
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        summary_card = QFrame()
+        summary_card.setObjectName("sectionFrame")
+        summary_layout = QHBoxLayout(summary_card)
+        summary_layout.setContentsMargins(14, 12, 14, 12)
+        summary_layout.setSpacing(10)
+
+        icon = QLabel()
+        icon.setObjectName("sectionIconBadge")
+        icon.setPixmap(self.style().standardIcon(QStyle.SP_FileDialogContentsView).pixmap(14, 14))
+        summary_layout.addWidget(icon, 0, Qt.AlignVCenter)
+
+        text_block = QVBoxLayout()
+        text_block.setContentsMargins(0, 0, 0, 0)
+        text_block.setSpacing(2)
+        title = QLabel("标签池")
+        title.setObjectName("sectionTitle")
+        self.summary_label = QLabel("未添加关键词标签")
+        self.summary_label.setObjectName("mutedLabel")
+        text_block.addWidget(title)
+        text_block.addWidget(self.summary_label)
+        summary_layout.addLayout(text_block, 1)
+
+        self.open_button = QPushButton("进入标签池")
+        self.open_button.setObjectName("moduleEntryOpenButton")
+        self.open_button.setFixedHeight(36)
+        self.open_button.clicked.connect(self.open_manager)
+        summary_layout.addWidget(self.open_button)
+
+        layout.addWidget(summary_card)
+        self.set_value(default)
+
+    def _normalize_values(self, raw_value):
+        if isinstance(raw_value, (list, tuple, set)):
+            raw_items = raw_value
+        else:
+            raw_items = re.split(r"[\n,，；;]+", str(raw_value or ""))
+        values = []
+        seen = set()
+        for item in raw_items:
+            text = str(item or "").strip()
+            if not text:
+                continue
+            marker = text.lower()
+            if marker in seen:
+                continue
+            seen.add(marker)
+            values.append(text)
+        return values
+
+    def _refresh_summary(self):
+        if not self._tags:
+            self.summary_label.setText("未添加关键词标签")
+            return
+        preview = "、".join(self._tags[:3])
+        if len(self._tags) > 3:
+            preview += f" 等 {len(self._tags)} 个"
+        self.summary_label.setText(preview)
+
+    def _sync_from_dialog(self, values):
+        self._tags = self._normalize_values(values)
+        self._refresh_summary()
+        self.valueChanged.emit(list(self._tags))
+
+    def open_manager(self):
+        dialog = TagPoolDialog(self._tags, self)
+        dialog.valueChanged.connect(self._sync_from_dialog)
+        self._dialog = dialog
+        dialog.exec_()
+        self._tags = dialog.value()
+        self._refresh_summary()
+        self.valueChanged.emit(list(self._tags))
+        self._dialog = None
+
+    def set_value(self, value):
+        self._tags = self._normalize_values(value)
+        self._refresh_summary()
+        if self._dialog is not None:
+            self._dialog.set_value(self._tags)
+
+    def value(self):
+        return list(self._tags)
 
 
 class BoolStateChip(QPushButton):
@@ -1130,9 +1770,16 @@ class ActionFormCard(QFrame):
         return mapping.get(title, "当前分组配置")
 
     def _field_span(self, field):
-        if field.get("type") in ("dir", "dir_optional", "file", "file_optional", "save_file", "textarea"):
+        if self._is_tag_field(field):
+            return 2
+        if field.get("type") in ("dir", "dir_optional", "file", "file_optional", "save_file", "textarea", "tags"):
             return 2
         return 1
+
+    def _is_tag_field(self, field):
+        return field.get("type") == "tags" or (
+            self.action_meta.get("id") == "keyword_sort" and field.get("name") == "keywords"
+        )
 
     def _build_field_card(self, field, widget):
         frame = QFrame()
@@ -1226,10 +1873,12 @@ class ActionFormCard(QFrame):
                     step=config.get("step", 1),
                     value=int(default or 0),
                 )
-            widget = QSpinBox()
+            widget = NoWheelSpinBox()
             widget.setRange(field.get("min", 0), field.get("max", 999999))
             widget.setValue(int(default or 0))
             return widget
+        if self._is_tag_field(field):
+            return TagPoolInput(default=default)
         if field_type == "textarea":
             widget = QTextEdit()
             widget.setMinimumHeight(100)
@@ -1242,7 +1891,7 @@ class ActionFormCard(QFrame):
                 for value, icon in self._segmented_option_icons(field).items():
                     widget.set_option_icon(value, icon)
                 return widget
-            widget = QComboBox()
+            widget = NoWheelComboBox()
             for option in field.get("options", []):
                 widget.addItem(option["label"], option["value"])
             if default is not None:
@@ -1266,6 +1915,8 @@ class ActionFormCard(QFrame):
                 value = widget.isChecked()
             elif field_type == "int":
                 value = widget.value()
+            elif self._is_tag_field(field):
+                value = ", ".join(widget.value())
             elif field_type == "textarea":
                 value = widget.toPlainText()
             elif field_type == "select":
@@ -1302,6 +1953,8 @@ class ActionFormCard(QFrame):
                     widget.setValue(int(value))
                 except Exception:
                     pass
+            elif self._is_tag_field(field):
+                widget.set_value(value)
             elif field_type == "textarea":
                 widget.setPlainText("" if value is None else str(value))
             elif field_type == "select":
@@ -1358,6 +2011,9 @@ class ActionFormCard(QFrame):
             if field_type == "int":
                 if hasattr(widget, "valueChanged"):
                     widget.valueChanged.connect(self.schedule_preferences_emit)
+                continue
+            if self._is_tag_field(field):
+                widget.valueChanged.connect(lambda *_args: self.schedule_preferences_emit())
                 continue
             if field_type == "textarea":
                 widget.textChanged.connect(self.schedule_preferences_emit)

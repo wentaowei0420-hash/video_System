@@ -134,6 +134,12 @@ class 功能窗口(QDialog):
         super().__init__(parent)
         self.action_meta = action_meta
         self.submit_handler = submit_handler
+        self.setWindowFlags(
+            Qt.Window
+            | Qt.WindowMinimizeButtonHint
+            | Qt.WindowMaximizeButtonHint
+            | Qt.WindowCloseButtonHint
+        )
 
         self.setWindowTitle(f"{action_meta.get('title', '未命名功能')} - {category_title}")
         self.resize(980, 760)
@@ -181,6 +187,30 @@ class 功能窗口(QDialog):
         scroll.setWidget(scroll_container)
         layout.addWidget(scroll, 1)
 
+    def _has_active_task(self):
+        current_task_id = str(getattr(self, "current_task_id", "") or "").strip()
+        if current_task_id:
+            return True
+        timer = getattr(self, "task_poll_timer", None)
+        if timer is not None and timer.isActive():
+            return True
+        action_card = getattr(self, "action_card", None)
+        if action_card is not None and not action_card.isEnabled():
+            return True
+        return False
+
+    def closeEvent(self, event):
+        if self._has_active_task():
+            event.ignore()
+            self.hide()
+            parent = self.parent()
+            if parent is not None and hasattr(parent, "status_message"):
+                parent.status_message.setText("当前任务仍在执行，功能窗口已转入后台。")
+            if parent is not None and hasattr(parent, "update_active_task_cards"):
+                parent.update_active_task_cards()
+            return
+        super().closeEvent(event)
+
 
 class 主窗口(QMainWindow):
     def __init__(self, auto_fetch=True):
@@ -206,6 +236,8 @@ class 主窗口(QMainWindow):
         self.monitor_total_value_label = None
         self.monitor_ok_value_label = None
         self.monitor_issue_value_label = None
+        self.active_task_summary_label = None
+        self.active_task_list_layout = None
         self.history_list_layout = None
         self.history_summary_label = None
         self.history_update_label = None
@@ -393,6 +425,7 @@ class 主窗口(QMainWindow):
             existing.show()
             existing.raise_()
             existing.activateWindow()
+            self.update_active_task_cards()
             return
 
         window = 功能窗口(record["category_title"], record["action"], self.run_action, self)
@@ -440,8 +473,10 @@ class 主窗口(QMainWindow):
         )
         window.setAttribute(Qt.WA_DeleteOnClose, True)
         window.destroyed.connect(lambda *_: self.action_windows.pop(action_key, None))
+        window.destroyed.connect(lambda *_: self.update_active_task_cards())
         self.action_windows[action_key] = window
         window.show()
+        self.update_active_task_cards()
 
     def _install_action_progress(self, window):
         panel = QFrame()
@@ -554,6 +589,7 @@ class 主窗口(QMainWindow):
             self.pending_action_window = None
         if hasattr(window, "task_poll_timer") and window.task_poll_timer is not None:
             window.task_poll_timer.stop()
+        self.update_active_task_cards()
 
     def _progress_stylesheet(self, state):
         chunk_color = "#94a3b8"
@@ -616,6 +652,7 @@ class 主窗口(QMainWindow):
             window.progress_task_id_value_label.setText(task_id or "等待提交")
         window.progress_percent_label.setText(f"{value}%")
         window.progress_hint_label.setText(hint_text)
+        self.update_active_task_cards()
 
     def _submit_action_from_window(self, window, action_id, params, title):
         started = self.run_action(action_id, params, title, source_window=window)
@@ -641,6 +678,7 @@ class 主窗口(QMainWindow):
         self._set_action_progress_state(window, "success" if success else "failed", value, status_text, hint_text)
         if success:
             window.current_task_id = ""
+        self.update_active_task_cards()
 
     def _fetch_json_direct(self, path, timeout=3):
         base_url = self.base_url_edit.text().strip().rstrip("/")
@@ -1161,6 +1199,39 @@ class 主窗口(QMainWindow):
         )
         layout.addWidget(overview_strip)
 
+        task_group = QGroupBox("任务看板")
+        task_layout = QVBoxLayout(task_group)
+        task_layout.setContentsMargins(12, 12, 12, 12)
+        task_layout.setSpacing(10)
+
+        task_toolbar = QFrame()
+        task_toolbar.setObjectName("sectionFrame")
+        task_toolbar_layout = QHBoxLayout(task_toolbar)
+        task_toolbar_layout.setContentsMargins(12, 10, 12, 10)
+        task_toolbar_layout.setSpacing(8)
+
+        self.active_task_summary_label = QLabel("当前没有正在执行的任务")
+        self.active_task_summary_label.setObjectName("monitorSummary")
+        task_toolbar_layout.addWidget(self.active_task_summary_label)
+        task_toolbar_layout.addStretch(1)
+
+        task_refresh_button = QPushButton("刷新任务")
+        task_refresh_button.setObjectName("primaryButton")
+        task_refresh_button.setFixedHeight(36)
+        self._set_button_icon(task_refresh_button, QStyle.SP_BrowserReload)
+        task_refresh_button.clicked.connect(self.update_active_task_cards)
+        task_toolbar_layout.addWidget(task_refresh_button)
+
+        task_layout.addWidget(task_toolbar)
+
+        task_list_host = QWidget()
+        self.active_task_list_layout = QVBoxLayout(task_list_host)
+        self.active_task_list_layout.setContentsMargins(0, 0, 0, 0)
+        self.active_task_list_layout.setSpacing(10)
+        task_layout.addWidget(task_list_host)
+
+        layout.addWidget(task_group)
+
         quick_box = QGroupBox("模块入口")
         quick_layout = QGridLayout(quick_box)
         quick_layout.setHorizontalSpacing(10)
@@ -1180,6 +1251,7 @@ class 主窗口(QMainWindow):
 
         layout.addWidget(quick_box)
         layout.addStretch(1)
+        self.update_active_task_cards(mark_refresh=False)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -1352,6 +1424,137 @@ class 主窗口(QMainWindow):
                 widget.deleteLater()
             elif child_layout is not None:
                 self._clear_layout_widgets(child_layout)
+
+    def _collect_active_task_items(self):
+        items = []
+        for action_key, window in list(self.action_windows.items()):
+            if window is None:
+                continue
+            panel = getattr(window, "progress_panel", None)
+            action_card = getattr(window, "action_card", None)
+            timer = getattr(window, "task_poll_timer", None)
+            panel_state = str(panel.property("state") or "") if panel is not None else ""
+            is_active = panel_state == "running"
+            if not is_active and action_card is not None and not action_card.isEnabled():
+                is_active = True
+            if not is_active and timer is not None and timer.isActive():
+                is_active = True
+            if not is_active:
+                continue
+            items.append(
+                {
+                    "action_key": action_key,
+                    "title": str(window.action_meta.get("title") or action_key),
+                    "action_id": str(window.action_meta.get("id") or ""),
+                    "task_id": str(getattr(window, "current_task_id", "") or "").strip(),
+                    "progress": int(getattr(window, "progress_value", 0) or 0),
+                    "status_text": str(getattr(window, "progress_stage_value_label", QLabel()).text() if hasattr(window, "progress_stage_value_label") else "执行中"),
+                    "hint_text": str(getattr(window, "progress_hint_label", QLabel()).text() if hasattr(window, "progress_hint_label") else ""),
+                    "is_visible": bool(window.isVisible()),
+                    "window": window,
+                }
+            )
+        return items
+
+    def _focus_action_window(self, window):
+        if window is None:
+            return
+        window.show()
+        window.raise_()
+        window.activateWindow()
+        self.update_active_task_cards()
+
+    def _build_active_task_card(self, item):
+        frame = QFrame()
+        frame.setObjectName("historyRecordCard")
+        layout = QVBoxLayout(frame)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(8)
+
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+        header.setSpacing(10)
+
+        icon = QLabel()
+        icon.setObjectName("historyIconBadge")
+        icon.setPixmap(
+            self.style()
+            .standardIcon(self._action_icon_enum({"title": item.get("title"), "id": item.get("action_id")}))
+            .pixmap(14, 14)
+        )
+        header.addWidget(icon, 0, Qt.AlignTop)
+
+        title_block = QVBoxLayout()
+        title_block.setContentsMargins(0, 0, 0, 0)
+        title_block.setSpacing(2)
+        title = QLabel(item.get("title") or "未命名任务")
+        title.setObjectName("sectionTitle")
+        meta = QLabel(item.get("hint_text") or "任务正在后台执行。")
+        meta.setWordWrap(True)
+        meta.setObjectName("historyMetaText")
+        title_block.addWidget(title)
+        title_block.addWidget(meta)
+        header.addLayout(title_block, 1)
+
+        visibility_badge = QLabel("窗口打开" if item.get("is_visible") else "后台执行")
+        visibility_badge.setObjectName("softBadge" if item.get("is_visible") else "codeBadge")
+        state_badge = QLabel(item.get("status_text") or "执行中")
+        state_badge.setObjectName("badgeOnline")
+        header.addWidget(visibility_badge, 0, Qt.AlignTop)
+        header.addWidget(state_badge, 0, Qt.AlignTop)
+        layout.addLayout(header)
+
+        meta_row = QHBoxLayout()
+        meta_row.setContentsMargins(0, 0, 0, 0)
+        meta_row.setSpacing(8)
+
+        action_badge = QLabel(item.get("action_id") or "-")
+        action_badge.setObjectName("historyMetaBadge")
+        task_badge = QLabel(item.get("task_id") or "等待分配")
+        task_badge.setObjectName("historyMetaBadge")
+        progress_badge = QLabel(f"{int(item.get('progress', 0) or 0)}%")
+        progress_badge.setObjectName("historyMetaBadge")
+        meta_row.addWidget(action_badge)
+        meta_row.addWidget(task_badge)
+        meta_row.addWidget(progress_badge)
+        meta_row.addStretch(1)
+
+        open_button = QPushButton("打开窗口")
+        open_button.setObjectName("moduleEntryOpenButton")
+        open_button.setFixedHeight(34)
+        self._set_button_icon(open_button, QStyle.SP_TitleBarNormalButton, size=14)
+        open_button.clicked.connect(lambda _, current_window=item.get("window"): self._focus_action_window(current_window))
+        meta_row.addWidget(open_button)
+        layout.addLayout(meta_row)
+
+        progress_bar = QProgressBar()
+        progress_bar.setRange(0, 100)
+        progress_bar.setValue(int(item.get("progress", 0) or 0))
+        progress_bar.setTextVisible(False)
+        progress_bar.setFixedHeight(14)
+        progress_bar.setStyleSheet(self._progress_stylesheet("running")[0])
+        layout.addWidget(progress_bar)
+        return frame
+
+    def update_active_task_cards(self, mark_refresh=True):
+        if self.active_task_list_layout is None:
+            return
+        self._clear_layout_widgets(self.active_task_list_layout)
+        items = self._collect_active_task_items()
+        if self.active_task_summary_label is not None:
+            self.active_task_summary_label.setText(
+                f"当前正在执行 {len(items)} 项任务" if items else "当前没有正在执行的任务"
+            )
+        if not items:
+            empty_label = QLabel("没有正在执行的子页面任务。执行中的窗口即使转入后台，也会在这里持续显示。")
+            empty_label.setWordWrap(True)
+            empty_label.setObjectName("mutedLabel")
+            self.active_task_list_layout.addWidget(empty_label)
+            self.active_task_list_layout.addStretch(1)
+            return
+        for item in items:
+            self.active_task_list_layout.addWidget(self._build_active_task_card(item))
+        self.active_task_list_layout.addStretch(1)
 
     def update_monitor_cards(self, environment, mark_refresh=True):
         if self.monitor_grid_layout is None:

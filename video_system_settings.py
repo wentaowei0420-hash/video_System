@@ -19,6 +19,7 @@ DEFAULT_CONFIG = {
         "base_url": "",
         "last_page": "overview",
         "history_action_id": "",
+        "recent_keyword_tags": [],
     },
     "database": {
         "host": "127.0.0.1",
@@ -110,6 +111,7 @@ def load_settings():
             "base_url": str(ui.get("base_url") or "").strip(),
             "last_page": str(ui.get("last_page") or "overview").strip() or "overview",
             "history_action_id": str(ui.get("history_action_id") or "").strip(),
+            "recent_keyword_tags": [str(item).strip() for item in (ui.get("recent_keyword_tags") or []) if str(item).strip()],
         },
         "database": {
             "host": _read_env("VIDEO_SYSTEM_DB_HOST", database.get("host", "127.0.0.1")),

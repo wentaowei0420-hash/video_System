@@ -5,8 +5,19 @@
   },
   "ui": {
     "base_url": "http://127.0.0.1:8766",
-    "last_page": "monitor",
-    "history_action_id": ""
+    "last_page": "category:0",
+    "history_action_id": "",
+    "recent_keyword_tags": [
+      "2018",
+      "2014",
+      "2016",
+      "2017",
+      "2019",
+      "volg",
+      "旅游",
+      "日常",
+      "2015 2016"
+    ]
   },
   "database": {
     "host": "127.0.0.1",
