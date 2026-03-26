@@ -10,7 +10,8 @@ from video_system_settings import ensure_runtime_directories
 def main():
     ensure_runtime_directories()
     app = QApplication(sys.argv)
-    app.setFont(QFont("Microsoft YaHei UI", 11))
+    app.setStyle("Fusion")
+    app.setFont(QFont("Microsoft YaHei UI", 9))
     window = MainWindow()
     window.show()
     sys.exit(app.exec_())

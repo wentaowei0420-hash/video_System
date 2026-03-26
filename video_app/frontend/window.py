@@ -142,12 +142,12 @@ class 功能窗口(QDialog):
         )
 
         self.setWindowTitle(f"{action_meta.get('title', '未命名功能')} - {category_title}")
-        self.resize(980, 760)
-        self.setMinimumSize(920, 680)
+        self.resize(860, 620)
+        self.setMinimumSize(820, 560)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(14)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(8)
 
         intro = _create_template_header(
             self,
@@ -216,7 +216,7 @@ class 主窗口(QMainWindow):
     def __init__(self, auto_fetch=True):
         super().__init__()
         self.setWindowTitle(APP_TITLE)
-        self.resize(1580, 980)
+        self.resize(1320, 820)
         self._settings = load_settings()
 
         self.current_thread = None
@@ -262,22 +262,22 @@ class 主窗口(QMainWindow):
         self.setCentralWidget(central)
 
         root = QVBoxLayout(central)
-        root.setContentsMargins(12, 12, 12, 12)
-        root.setSpacing(10)
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(6)
 
         root.addWidget(self._build_header())
 
         content_panel = QFrame()
         content_panel.setObjectName("contentPanel")
         content_layout = QVBoxLayout(content_panel)
-        content_layout.setContentsMargins(10, 10, 10, 10)
-        content_layout.setSpacing(10)
+        content_layout.setContentsMargins(6, 6, 6, 6)
+        content_layout.setSpacing(6)
 
         self.module_nav_frame = QFrame()
         self.module_nav_frame.setObjectName("moduleNavFrame")
         self.module_nav_layout = QHBoxLayout(self.module_nav_frame)
-        self.module_nav_layout.setContentsMargins(8, 8, 8, 8)
-        self.module_nav_layout.setSpacing(8)
+        self.module_nav_layout.setContentsMargins(4, 4, 4, 4)
+        self.module_nav_layout.setSpacing(4)
         self.module_nav_layout.addStretch(1)
 
         self.page_stack = QStackedWidget()
@@ -346,8 +346,8 @@ class 主窗口(QMainWindow):
         persisted_base_url = str((self._settings.get("ui") or {}).get("base_url") or "").strip()
         self.base_url_edit = QLineEdit(persisted_base_url or DEFAULT_BASE_URL)
         self.base_url_edit.setObjectName("toolbarLineEdit")
-        self.base_url_edit.setMinimumWidth(360)
-        self.base_url_edit.setFixedHeight(40)
+        self.base_url_edit.setMinimumWidth(280)
+        self.base_url_edit.setFixedHeight(32)
         self.base_url_edit.editingFinished.connect(self._persist_ui_state)
         address_layout.addWidget(self.base_url_edit, 1)
 
@@ -355,13 +355,13 @@ class 主窗口(QMainWindow):
 
         refresh_button = QPushButton("加载目录")
         refresh_button.setObjectName("toolbarPrimaryButton")
-        refresh_button.setFixedHeight(40)
+        refresh_button.setFixedHeight(32)
         self._set_button_icon(refresh_button, QStyle.SP_BrowserReload)
         refresh_button.clicked.connect(self.fetch_catalog)
 
         health_button = QPushButton("检查连接")
         health_button.setObjectName("toolbarActionButton")
-        health_button.setFixedHeight(40)
+        health_button.setFixedHeight(32)
         self._set_button_icon(health_button, QStyle.SP_DialogApplyButton)
         health_button.clicked.connect(self.check_health)
 
@@ -392,8 +392,8 @@ class 主窗口(QMainWindow):
         button = QPushButton(title)
         button.setObjectName("moduleButton")
         button.setCheckable(True)
-        button.setMinimumHeight(46)
-        button.setMinimumWidth(132)
+        button.setMinimumHeight(34)
+        button.setMinimumWidth(104)
         self._set_button_icon(button, self._module_icon_enum(page_key, title), size=14)
         button.clicked.connect(lambda _, key=page_key: self.navigate_to_page(key))
         self.module_buttons[page_key] = button
@@ -1201,14 +1201,14 @@ class 主窗口(QMainWindow):
 
         task_group = QGroupBox("任务看板")
         task_layout = QVBoxLayout(task_group)
-        task_layout.setContentsMargins(12, 12, 12, 12)
-        task_layout.setSpacing(10)
+        task_layout.setContentsMargins(8, 8, 8, 8)
+        task_layout.setSpacing(6)
 
         task_toolbar = QFrame()
         task_toolbar.setObjectName("sectionFrame")
         task_toolbar_layout = QHBoxLayout(task_toolbar)
-        task_toolbar_layout.setContentsMargins(12, 10, 12, 10)
-        task_toolbar_layout.setSpacing(8)
+        task_toolbar_layout.setContentsMargins(8, 6, 8, 6)
+        task_toolbar_layout.setSpacing(6)
 
         self.active_task_summary_label = QLabel("当前没有正在执行的任务")
         self.active_task_summary_label.setObjectName("monitorSummary")
@@ -1217,7 +1217,7 @@ class 主窗口(QMainWindow):
 
         task_refresh_button = QPushButton("刷新任务")
         task_refresh_button.setObjectName("primaryButton")
-        task_refresh_button.setFixedHeight(36)
+        task_refresh_button.setFixedHeight(30)
         self._set_button_icon(task_refresh_button, QStyle.SP_BrowserReload)
         task_refresh_button.clicked.connect(self.update_active_task_cards)
         task_toolbar_layout.addWidget(task_refresh_button)
@@ -1227,7 +1227,7 @@ class 主窗口(QMainWindow):
         task_list_host = QWidget()
         self.active_task_list_layout = QVBoxLayout(task_list_host)
         self.active_task_list_layout.setContentsMargins(0, 0, 0, 0)
-        self.active_task_list_layout.setSpacing(10)
+        self.active_task_list_layout.setSpacing(6)
         task_layout.addWidget(task_list_host)
 
         layout.addWidget(task_group)
@@ -1261,8 +1261,8 @@ class 主窗口(QMainWindow):
     def build_monitor_page(self, environment):
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(12)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(6)
 
         hero = QFrame()
         hero.setObjectName("heroPanel")
@@ -1361,8 +1361,8 @@ class 主窗口(QMainWindow):
     def build_history_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(12)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(6)
 
         hero = QFrame()
         hero.setObjectName("heroPanel")
@@ -1736,8 +1736,8 @@ class 主窗口(QMainWindow):
     def build_category_page(self, category, category_key):
         container = QWidget()
         layout = QVBoxLayout(container)
-        layout.setContentsMargins(2, 2, 2, 2)
-        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
 
         actions = category.get("actions", [])
         intro = _create_template_header(

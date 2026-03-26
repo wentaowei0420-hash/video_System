@@ -1109,4 +1109,239 @@ QStatusBar {
     color: #64748b;
     border-top: 1px solid #dde5ef;
 }
+
+/* strict desktop tool overrides */
+QWidget {
+    background: #f3f3f3;
+    color: #222222;
+    font-size: 12px;
+}
+QMainWindow {
+    background: #efefef;
+}
+#headerFrame, #sectionFrame, #contentPanel, #moduleNavFrame, #dialogHeader, #heroPanel, #actionCard, #taskProgressPanel, QGroupBox, QScrollArea, #templateStatusStrip, #fieldGroupCard, #configSummaryPanel, #historyRecordCard, #entryTile, #moduleEntryCard, #statusStrip {
+    background: #ffffff;
+    border: 1px solid #cfcfcf;
+    border-radius: 4px;
+}
+#headerToolbar, #backendAddressShell {
+    background: #ffffff;
+    border: 1px solid #cfcfcf;
+    border-radius: 4px;
+}
+#moduleNavFrame {
+    background: #f7f7f7;
+}
+#headerTitle, #heroTitle, #sectionTitle, #moduleEntryTitle, #entryTitle, #summaryPanelTitle, #groupTitleLabel {
+    color: #222222;
+    font-weight: 700;
+}
+#headerTitle {
+    font-size: 18px;
+}
+#heroTitle {
+    font-size: 17px;
+}
+#sectionTitle {
+    font-size: 14px;
+}
+#headerSubtitle, #mutedLabel, #toolbarLabel, #moduleEntryDesc, #entryDesc, #summaryPanelSubtitle, #groupSubtitleLabel, #historyMetaText, #monitorMeta, #monitorStatTitle {
+    color: #666666;
+}
+#heroIconBadge, #sectionIconBadge, #historyIconBadge, #toolbarIconBadge, #templateStatusChipIcon, #summaryPanelIcon, #summaryChipIcon, #entryIcon, #moduleEntryIcon {
+    background: #f4f4f4;
+    border: 1px solid #d6d6d6;
+    border-radius: 3px;
+}
+#softBadge, #codeBadge, #historyMetaBadge, #moduleEntryMetaBadge, #moduleEntryActionPill, #entryMetaBadge, #statusMetaBadge, #fieldPurposeBadge, #summaryPanelBadge {
+    background: #f4f4f4;
+    border: 1px solid #d6d6d6;
+    color: #444444;
+    border-radius: 3px;
+    padding: 2px 6px;
+}
+#badgeOnline, #badgeOffline, #entryStatus, #moduleEntryStatus {
+    border-radius: 3px;
+    padding: 3px 8px;
+    font-weight: 700;
+}
+#badgeOnline, #moduleEntryStatus {
+    background: #edf7ed;
+    color: #256c2f;
+    border: 1px solid #b9d9bc;
+}
+#badgeOffline, #entryStatus {
+    background: #f8f8f8;
+    color: #555555;
+    border: 1px solid #d4d4d4;
+}
+QLineEdit, QTextEdit, QComboBox, QSpinBox {
+    background: #ffffff;
+    border: 1px solid #bfbfbf;
+    border-radius: 2px;
+    padding: 6px 8px;
+    min-height: 18px;
+    color: #222222;
+}
+QLineEdit:focus, QTextEdit:focus, QComboBox:focus, QSpinBox:focus {
+    border: 1px solid #7da2ce;
+    background: #ffffff;
+}
+QLineEdit:hover, QTextEdit:hover, QComboBox:hover, QSpinBox:hover {
+    border: 1px solid #a9a9a9;
+    background: #ffffff;
+}
+QComboBox::drop-down {
+    width: 22px;
+}
+QPushButton {
+    background: #f6f6f6;
+    color: #222222;
+    border: 1px solid #bfbfbf;
+    border-radius: 2px;
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 500;
+}
+QPushButton:hover {
+    background: #ffffff;
+    border: 1px solid #9f9f9f;
+    color: #111111;
+}
+QPushButton:pressed {
+    background: #e9e9e9;
+    border: 1px solid #8d8d8d;
+}
+QPushButton#primaryButton, QPushButton#toolbarPrimaryButton {
+    background: #f6f6f6;
+    color: #222222;
+    border: 1px solid #9a9a9a;
+}
+QPushButton#primaryButton:hover, QPushButton#toolbarPrimaryButton:hover {
+    background: #ffffff;
+    color: #111111;
+    border: 1px solid #7f7f7f;
+}
+QPushButton#primaryButton:pressed, QPushButton#toolbarPrimaryButton:pressed {
+    background: #e9e9e9;
+    color: #111111;
+    border: 1px solid #6f6f6f;
+}
+QPushButton#toolbarActionButton, QPushButton#moduleEntryOpenButton, QPushButton#entryOpenButton, QPushButton#browseButton {
+    background: #f6f6f6;
+    border: 1px solid #bfbfbf;
+    border-radius: 2px;
+    color: #222222;
+}
+QPushButton#moduleButton {
+    min-width: 118px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    color: #444444;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+QPushButton#moduleButton:hover {
+    background: #f6f6f6;
+    border: 1px solid #d0d0d0;
+    border-bottom: 2px solid #b0b0b0;
+    color: #222222;
+}
+QPushButton#moduleButton:checked {
+    background: #ffffff;
+    border: 1px solid #c8c8c8;
+    border-bottom: 2px solid #7d7d7d;
+    color: #111111;
+}
+#entryTile:hover, #moduleEntryCard:hover, #historyRecordCard:hover, #fieldCard:hover {
+    background: #fcfcfc;
+    border: 1px solid #c5c5c5;
+}
+#templateStatusChip, #summaryChip, #parameterStrip, #fieldCard {
+    background: #fafafa;
+    border: 1px solid #d6d6d6;
+    border-radius: 3px;
+}
+QScrollArea {
+    border-radius: 3px;
+}
+QGroupBox {
+    margin-top: 8px;
+    padding: 10px 10px 10px 10px;
+    font-weight: 700;
+}
+QGroupBox::title {
+    color: #444444;
+    background: #ffffff;
+}
+QStatusBar {
+    background: #f7f7f7;
+    color: #555555;
+    border-top: 1px solid #cccccc;
+}
+
+/* compact layout overrides */
+QWidget {
+    font-size: 11px;
+}
+#headerTitle {
+    font-size: 15px;
+}
+#heroTitle {
+    font-size: 14px;
+}
+#sectionTitle, #moduleEntryTitle, #entryTitle {
+    font-size: 12px;
+}
+#headerFrame, #sectionFrame, #contentPanel, #moduleNavFrame, #dialogHeader, #heroPanel, #actionCard, #taskProgressPanel, QGroupBox, QScrollArea, #templateStatusStrip, #fieldGroupCard, #configSummaryPanel, #historyRecordCard, #entryTile, #moduleEntryCard, #statusStrip {
+    border-radius: 2px;
+}
+#heroIconBadge, #sectionIconBadge, #historyIconBadge, #toolbarIconBadge, #templateStatusChipIcon, #summaryPanelIcon, #summaryChipIcon, #entryIcon, #moduleEntryIcon {
+    min-width: 22px;
+    max-width: 22px;
+    min-height: 22px;
+    max-height: 22px;
+    border-radius: 2px;
+}
+#toolbarLineEdit {
+    padding: 4px 6px;
+    border-radius: 2px;
+}
+QLineEdit, QTextEdit, QComboBox, QSpinBox {
+    padding: 4px 6px;
+    min-height: 16px;
+    border-radius: 2px;
+}
+QPushButton {
+    padding: 4px 10px;
+    font-size: 11px;
+    border-radius: 2px;
+}
+QPushButton#primaryButton, QPushButton#toolbarPrimaryButton, QPushButton#toolbarActionButton, QPushButton#moduleEntryOpenButton, QPushButton#entryOpenButton, QPushButton#browseButton {
+    padding: 4px 10px;
+    border-radius: 2px;
+}
+QPushButton#moduleButton {
+    min-width: 92px;
+    padding: 4px 8px;
+    font-size: 11px;
+}
+#softBadge, #codeBadge, #historyMetaBadge, #moduleEntryMetaBadge, #moduleEntryActionPill, #entryMetaBadge, #statusMetaBadge, #fieldPurposeBadge, #summaryPanelBadge, #entryStatus, #moduleEntryStatus, #badgeOnline, #badgeOffline {
+    font-size: 10px;
+    padding: 2px 5px;
+    border-radius: 2px;
+}
+#templateStatusChip, #summaryChip, #parameterStrip, #fieldCard {
+    border-radius: 2px;
+}
+QGroupBox {
+    margin-top: 5px;
+    padding: 6px 6px 6px 6px;
+}
+QGroupBox::title {
+    padding: 0 4px;
+}
 """

@@ -259,7 +259,7 @@ class TagPoolDialog(QDialog):
         self._recent_tags = load_recent_keyword_tags()
         self.setWindowTitle("标签池")
         self.resize(760, 520)
-        self.setMinimumSize(680, 460)
+        self.setMinimumSize(620, 420)
         self.setWindowFlags(
             Qt.Window
             | Qt.WindowMinimizeButtonHint
@@ -676,7 +676,7 @@ class BoolStateChip(QPushButton):
         super().__init__("")
         self.setObjectName("boolStateChip")
         self.setCheckable(True)
-        self.setMinimumHeight(40)
+        self.setMinimumHeight(30)
         self.setCursor(Qt.PointingHandCursor)
         self._on_icon = on_icon
         self._off_icon = off_icon
@@ -711,7 +711,7 @@ class SegmentedSelect(QWidget):
             button.setObjectName("segmentButton")
             button.setCheckable(True)
             button.setCursor(Qt.PointingHandCursor)
-            button.setMinimumHeight(40)
+            button.setMinimumHeight(30)
             button.clicked.connect(lambda checked=False, idx=index: self.setCurrentIndex(idx))
             layout.addWidget(button, 1)
             self._buttons.append(button)
@@ -787,7 +787,7 @@ class PanelStepper(QWidget):
         self.value_label.setObjectName("stepperValue")
         self.value_label.setReadOnly(True)
         self.value_label.setAlignment(Qt.AlignCenter)
-        self.value_label.setMinimumHeight(40)
+        self.value_label.setMinimumHeight(30)
 
         self.plus_button = QPushButton("")
         self.plus_button.setObjectName("stepperButton")
@@ -832,7 +832,7 @@ class PathInput(QWidget):
         self.combo.setEditable(True)
         self.combo.setInsertPolicy(QComboBox.NoInsert)
         self.combo.setObjectName("pathHistoryCombo")
-        self.combo.setMinimumHeight(36)
+        self.combo.setMinimumHeight(30)
         self.combo.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         if self.combo.lineEdit() is not None:
             self.combo.lineEdit().setObjectName("pathLineEdit")
@@ -1050,7 +1050,7 @@ class StatusStrip(QFrame):
     def __init__(self, title, value, hint):
         super().__init__()
         self.setObjectName("statusStrip")
-        self.setMinimumHeight(112)
+        self.setMinimumHeight(84)
         state_key, state_label, detail_text, icon = self._resolve_state(str(value or ""), str(hint or ""))
 
         layout = QVBoxLayout(self)
@@ -1128,7 +1128,7 @@ class ActionEntryTile(QFrame):
         self.page_key = page_key
         self.setObjectName("entryTile")
         self.setCursor(Qt.PointingHandCursor)
-        self.setMinimumHeight(142)
+        self.setMinimumHeight(110)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
 
         layout = QVBoxLayout(self)
@@ -1160,7 +1160,7 @@ class ActionEntryTile(QFrame):
         desc_label = QLabel(description or "打开独立功能窗口进行配置和执行。")
         desc_label.setObjectName("entryDesc")
         desc_label.setWordWrap(True)
-        desc_label.setMinimumHeight(34)
+        desc_label.setMinimumHeight(22)
         layout.addWidget(desc_label, 1)
 
         footer = QHBoxLayout()
@@ -1176,8 +1176,8 @@ class ActionEntryTile(QFrame):
         open_button = QPushButton("打开")
         open_button.setObjectName("entryOpenButton")
         open_button.setCursor(Qt.PointingHandCursor)
-        open_button.setMinimumWidth(84)
-        open_button.setFixedHeight(32)
+        open_button.setMinimumWidth(68)
+        open_button.setFixedHeight(28)
         open_button.setIcon(self.style().standardIcon(QStyle.SP_ArrowForward))
         open_button.setIconSize(QSize(14, 14))
         open_button.clicked.connect(self._emit_opened)
@@ -1211,8 +1211,8 @@ class ModuleEntryCard(QFrame):
         self.setObjectName("moduleEntryCard")
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(14, 14, 14, 14)
-        outer.setSpacing(10)
+        outer.setContentsMargins(10, 10, 10, 10)
+        outer.setSpacing(6)
 
         header = QHBoxLayout()
         header.setContentsMargins(0, 0, 0, 0)
@@ -1309,8 +1309,8 @@ class ActionFormCard(QFrame):
 
     def _build_ui(self):
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(22, 22, 22, 22)
-        layout.setSpacing(18)
+        layout.setContentsMargins(12, 12, 12, 12)
+        layout.setSpacing(10)
 
         if self.show_description and self.action_meta.get("description"):
             desc = QLabel(self.action_meta.get("description", ""))
@@ -1351,8 +1351,8 @@ class ActionFormCard(QFrame):
         footer = QHBoxLayout()
         self.run_button = QPushButton("执行任务")
         self.run_button.setObjectName("primaryButton")
-        self.run_button.setFixedHeight(44)
-        self.run_button.setMinimumWidth(132)
+        self.run_button.setFixedHeight(34)
+        self.run_button.setMinimumWidth(104)
         self.run_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
         self.run_button.setIconSize(QSize(14, 14))
         self.run_button.clicked.connect(self.submit)
@@ -1403,8 +1403,8 @@ class ActionFormCard(QFrame):
         footer = QHBoxLayout()
         self.run_button = QPushButton("执行任务")
         self.run_button.setObjectName("primaryButton")
-        self.run_button.setFixedHeight(44)
-        self.run_button.setMinimumWidth(132)
+        self.run_button.setFixedHeight(34)
+        self.run_button.setMinimumWidth(104)
         self.run_button.setIcon(self.style().standardIcon(QStyle.SP_MediaPlay))
         self.run_button.setIconSize(QSize(14, 14))
         self.run_button.clicked.connect(self.submit)
@@ -1881,7 +1881,7 @@ class ActionFormCard(QFrame):
             return TagPoolInput(default=default)
         if field_type == "textarea":
             widget = QTextEdit()
-            widget.setMinimumHeight(100)
+            widget.setMinimumHeight(72)
             if default:
                 widget.setPlainText(str(default))
             return widget
